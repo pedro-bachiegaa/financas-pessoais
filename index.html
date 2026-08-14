@@ -419,7 +419,7 @@ let S = {
   data:{}, fixedBillTemplates:[], customCategories:[],
 };
 let currentPage='home', currentTab='vr', currentChart='cats';
-let billsOpen=false, expFilter=null, editingExp=null;
+let billsOpen=false, expFilter=null, pmFilter=null, editingExp=null;
 let salEditing=false, vrEditing=false, topRechargeOpen=false, topBalEditing=false;
 let billFormOpen=false, catFormOpen=false, investFormOpen=false, extraIncomeFormOpen=false;
 let newCatColor='#EF4444';
@@ -857,14 +857,21 @@ function rExp(){
   const cats=allCats();
   const usedCats=[...new Set(expenses.map(e=>e.category))].map(id=>getCat(id));
   const chips=[{id:null,name:'Todos',e:'',c:'var(--primary)'},...usedCats];
-  const filtered=expFilter?expenses.filter(e=>e.category===expFilter):expenses;
+  let filtered=pmFilter==='vr'?expenses.filter(e=>e.paymentMethod==='vr'):pmFilter==='mp'?expenses.filter(e=>e.paymentMethod!=='vr'&&e.paymentMethod!=='top'):expenses;
+  if(expFilter)filtered=filtered.filter(e=>e.category===expFilter);
+  const pmTotal=filtered.reduce((a,e)=>a+e.amount,0);
   const billsHTML=billsOpen?`<div class="blist">${fixedBills.map(b=>`<div class="brow2" onclick="toggleBill('${b.id}')"><div class="bchk${b.paid?' paid':''}">${b.paid?'✓':''}</div><div style="flex:1"><div style="font-size:13px;font-weight:600;color:var(--text);text-decoration:${b.paid?'line-through':'none'}">${b.name}</div><div style="font-size:11px;color:var(--muted)">Vence dia ${b.dueDay}</div></div><span style="font-size:13px;font-weight:700;color:${b.paid?'var(--muted)':'var(--expense)'}">${fmt(b.amount)}</span></div>`).join('')}</div>`:'';
 
   document.getElementById('p-expenses').innerHTML=`
     <div class="ph"><div class="pt">Gastos</div><button class="hbtn" style="margin-right:8px;font-size:12px;padding:6px 10px" onclick="openImportModal()">📥</button><button class="hbtn" onclick="openExpModal(null)">＋</button></div>
     ${mselHTML()}
+    <div class="frow" style="padding:4px 16px 0">
+      <button class="fchip${!pmFilter?' on':''}" style="${!pmFilter?'background:var(--primary);border-color:var(--primary)':''}" onclick="setPMFilter(null)">Todos</button>
+      <button class="fchip${pmFilter==='vr'?' on':''}" style="${pmFilter==='vr'?'background:var(--vr);border-color:var(--vr)':''}" onclick="setPMFilter('vr')">🍽️ VR</button>
+      <button class="fchip${pmFilter==='mp'?' on':''}" style="${pmFilter==='mp'?'background:var(--primary);border-color:var(--primary)':''}" onclick="setPMFilter('mp')">📱 MP / PIX</button>
+    </div>
     <div class="sbar">
-      <div class="sbi"><div class="sbil">Gastos</div><div class="sbiv" style="color:var(--expense)">${fmt(totalExp)}</div></div>
+      <div class="sbi"><div class="sbil">${pmFilter==='vr'?'VR':pmFilter==='mp'?'MP / PIX':'Gastos'}</div><div class="sbiv" style="color:var(--expense)">${fmt(pmFilter?pmTotal:totalExp)}</div></div>
       <div class="sbi"><div class="sbil">Contas</div><div class="sbiv" style="color:var(--expense)">${fmt(totalBills)}</div></div>
       <div class="sbi"><div class="sbil">Total</div><div class="sbiv" style="color:var(--expense);font-weight:800">${fmt(totalExp+totalBills)}</div></div>
     </div>
@@ -895,9 +902,14 @@ function expListHTML(list){
   }).join('');
 }
 function setFilter(id){expFilter=id==='null'?null:id||null;rExp()}
+function setPMFilter(v){pmFilter=v;expFilter=null;rExp()}
 function toggleBills(){billsOpen=!billsOpen;rExp()}
 function filterSearch(q){
-  const m=S.selectedMonth,exps=getMD(m).expenses;
+  const m=S.selectedMonth;
+  let exps=getMD(m).expenses;
+  if(pmFilter==='vr')exps=exps.filter(e=>e.paymentMethod==='vr');
+  else if(pmFilter==='mp')exps=exps.filter(e=>e.paymentMethod!=='vr'&&e.paymentMethod!=='top');
+  if(expFilter)exps=exps.filter(e=>e.category===expFilter);
   const filtered=q?exps.filter(e=>(e.description||'').toLowerCase().includes(q.toLowerCase())||getCat(e.category).name.toLowerCase().includes(q.toLowerCase())):exps;
   const el=document.getElementById('exp-list');
   if(el)el.innerHTML=expListHTML(filtered);
