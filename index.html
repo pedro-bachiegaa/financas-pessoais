@@ -672,14 +672,21 @@ function rPage(page,opts){
 // MONTH SELECTOR COMPONENT
 // ═══════════════════════════════════════════════════════════════════
 function mselHTML(){
-  const months=getMonths(6),cm=mk();
+  const cm=mk();
+  const start=S._startMonth||cm;
+  // Mostra só meses que têm dados + o mês atual, a partir do mês de início
+  const dataMonths=Object.keys(S.data||{}).filter(m=>m>=start&&m<=cm).sort();
+  if(!dataMonths.includes(cm))dataMonths.push(cm);
+  const months=[...new Set(dataMonths)].sort();
   const chips=months.map(m=>`<button class="mchip${m===S.selectedMonth?' on':''}" onclick="selMonth('${m}')">${mkLabel(m,true)}</button>`).join('');
-  const nxt=nextMk(S.selectedMonth);
-  const canNext=nxt<=cm;
+  const idx=months.indexOf(S.selectedMonth);
+  const prev=idx>0?months[idx-1]:null;
+  const nxt=idx<months.length-1?months[idx+1]:null;
+  const canNext=!!nxt&&nxt<=cm;
   return`<div class="msel">
-    <button class="marr" onclick="selMonth('${prevMk(S.selectedMonth)}')">‹</button>
+    <button class="marr" ${prev?`onclick="selMonth('${prev}')"`:'style="color:var(--border);cursor:default"'}>‹</button>
     <div class="mchips">${chips}</div>
-    <button class="marr" onclick="selMonth('${nxt}')" ${canNext?'':'style="color:var(--border);cursor:default"'}>›</button>
+    <button class="marr" ${canNext?`onclick="selMonth('${nxt}')"`:'style="color:var(--border);cursor:default"'}>›</button>
   </div>`;
 }
 function selMonth(m){
