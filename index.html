@@ -370,7 +370,7 @@ let _user=null;
 let _syncTimer=null;
 
 function signInWithGoogle(){
-  _auth.signInWithPopup(new firebase.auth.GoogleAuthProvider())
+  _auth.signInWithRedirect(new firebase.auth.GoogleAuthProvider())
     .catch(e=>alert('Erro ao entrar: '+e.message));
 }
 function fbSignOut(){
