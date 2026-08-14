@@ -536,10 +536,28 @@ function calcAvailCarryOver(m){
   if(!S.data[prev])return 0;
   return Math.max(0,calcAvail(prev));
 }
+function calcMonthInvest(m){return(getMD(m).investments||[]).reduce((a,e)=>a+e.amount,0)}
 function calcAvail(m){
   const d=getMD(m);
   const net=d.salary?.netReceived!=null?d.salary.netReceived:calcNet(d.salary);
-  return net+calcExtraIncome(m)+calcAvailCarryOver(m)-calcExp(m)-calcBills(m);
+  return net+calcExtraIncome(m)+calcAvailCarryOver(m)-calcExp(m)-calcBills(m)-calcMonthInvest(m);
+}
+function calcCDIEarnings(){
+  // Calcula rendimento acumulado de todos os investimentos a 115% CDI ao ano
+  const cdi=(S.cdiRate||10.75)/100;
+  const rate=1.15*cdi;
+  const monthlyRate=Math.pow(1+rate,1/12)-1;
+  const today=new Date();
+  let total=0,principal=0;
+  Object.values(S.data||{}).forEach(md=>{
+    (md.investments||[]).forEach(e=>{
+      const d=new Date(e.date+'T12:00:00');
+      const months=Math.max(0,(today-d)/(1000*60*60*24*30.44));
+      total+=e.amount*(Math.pow(1+monthlyRate,months)-1);
+      principal+=e.amount;
+    });
+  });
+  return{earnings:total,principal};
 }
 function calcCommit(m){
   const d=getMD(m);
@@ -1176,19 +1194,20 @@ function delTOPRecharge(id){
 }
 
 // ═══════════════════════════════════════════════════════════════════
+function saveCDIRate(){
+  const v=parseFloat(document.getElementById('cdi-inp')?.value);
+  if(v>0&&v<100){S.cdiRate=v;save();rBen('invest');}
+}
 function rInvest(){
   const m=S.selectedMonth,d=getMD(m);
   const list=d.investments||[];
   const thisMo=list.reduce((a,e)=>a+e.amount,0);
+  const {earnings,principal}=calcCDIEarnings();
+  const cdi=S.cdiRate||10.75;
 
-  // total acumulado de todos os meses
-  const total=Object.values(S.data).reduce((a,md)=>{
-    return a+(md.investments||[]).reduce((b,e)=>b+e.amount,0);
-  },0);
-
-  // histórico mensal (últimos 6 meses)
-  const months=getMonths(6);
-  const moHist=months.map(mo=>{
+  // total investido em todos os meses
+  const allMonths=Object.keys(S.data||{}).sort();
+  const moHist=allMonths.map(mo=>{
     const mv=(getMD(mo).investments||[]).reduce((a,e)=>a+e.amount,0);
     return{label:mkLabel(mo,true),val:mv};
   }).filter(x=>x.val>0);
@@ -1208,12 +1227,23 @@ function rInvest(){
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
       <div style="width:44px;height:44px;border-radius:22px;background:var(--income)22;display:flex;align-items:center;justify-content:center;font-size:22px">📈</div>
       <div style="flex:1">
-        <div style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase">Total acumulado</div>
-        <div style="font-size:26px;font-weight:800;color:var(--income)">${fmt(total)}</div>
+        <div style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase">Total investido</div>
+        <div style="font-size:26px;font-weight:800;color:var(--income)">${fmt(principal)}</div>
       </div>
     </div>
-    <div class="sr"><span class="sl">Investido este mês</span><span class="sv" style="color:var(--income)">${fmt(thisMo)}</span></div>
-    ${moHist.length>1?`<div class="div"></div><div style="font-size:12px;color:var(--muted);margin-bottom:6px">Histórico</div>${moHist.map(x=>`<div class="sr"><span class="sl">${x.label}</span><span class="sv" style="color:var(--income)">${fmt(x.val)}</span></div>`).join('')}`:''}
+    <div class="sr"><span class="sl">Rendimento estimado</span><span class="sv" style="color:#34D399">+${fmt(earnings)}</span></div>
+    <div class="sr"><span class="sl">Total com rendimento</span><span class="sv" style="color:var(--income);font-weight:800">${fmt(principal+earnings)}</span></div>
+    <div class="div"></div>
+    <div class="sr" style="align-items:center">
+      <span class="sl">Taxa CDI (aa) — 115%</span>
+      <span style="display:flex;align-items:center;gap:6px">
+        <input id="cdi-inp" type="number" inputmode="decimal" value="${cdi}" style="width:64px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:4px 6px;font-size:12px;text-align:right" step="0.25"/>
+        <span style="font-size:12px;color:var(--muted)">%</span>
+        <button style="font-size:11px;padding:4px 8px;background:var(--income);color:#fff;border:none;border-radius:6px;cursor:pointer" onclick="saveCDIRate()">OK</button>
+      </span>
+    </div>
+    <div style="font-size:10px;color:var(--muted);margin-top:4px">Rendimento calculado a 115% do CDI informado</div>
+    ${moHist.length>1?`<div class="div"></div><div style="font-size:12px;color:var(--muted);margin-bottom:6px">Por mês</div>${moHist.map(x=>`<div class="sr"><span class="sl">${x.label}</span><span class="sv" style="color:var(--income)">${fmt(x.val)}</span></div>`).join('')}`:''}
   </div>
   <div style="display:flex;justify-content:space-between;align-items:center">
     <div style="font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted)">Este mês</div>
