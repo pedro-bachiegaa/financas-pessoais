@@ -235,6 +235,20 @@ input:checked+.togsl::before{transform:translateX(22px)}
 .defcatsgrid{display:flex;flex-wrap:wrap;gap:10px}
 .dcat{display:flex;align-items:center;gap:6px;font-size:12px}
 ::-webkit-scrollbar{width:0;height:0}
+/* CALENDAR */
+.calwrap{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:12px;margin-bottom:10px}
+.calgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin:4px 0}
+.calhead{text-align:center;font-size:10px;font-weight:700;color:var(--muted);padding:3px 0}
+.calhead.we{color:var(--border)}
+.calday{aspect-ratio:1;display:flex;align-items:center;justify-content:center;border-radius:8px;font-size:12px;font-weight:600;border:1.5px solid transparent;transition:all .15s;min-height:34px}
+.calday.empty{background:transparent}
+.calday.we{color:var(--border);background:transparent;cursor:default}
+.calday.wd{background:var(--card);color:var(--text);cursor:pointer}
+.calday.wd:hover{border-color:var(--expense);color:var(--expense)}
+.calday.abs{background:var(--expense)!important;color:#fff!important;border-color:var(--expense)!important}
+.calday.today{border-color:var(--primary)}
+.abs-summary{background:var(--expense)12;border:1px solid var(--expense)44;border-radius:12px;padding:12px;margin-top:8px}
+.dsr-tag{display:inline-block;font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:var(--warning)22;color:var(--warning)}
 </style>
 </head>
 <body class="dark">
@@ -380,8 +394,15 @@ function getPay(id){return PAYS.find(p=>p.id===id)||{id,name:id,e:'💳',c:'#94A
 // ═══════════════════════════════════════════════════════════════════
 function calcNet(sal){
   if(!sal)return 0;
-  const{gross=0,inss=0,irrf=0,otherDiscounts=0,absences=0,delays=0,bonuses=0}=sal;
-  return Math.max(0,gross-inss-irrf-otherDiscounts-absences-delays+bonuses);
+  const{gross=0,inss=0,irrf=0,otherDiscounts=0,delays=0,bonuses=0}=sal;
+  const absCnt=(sal.absentDays||[]).length;
+  const daily=sal.dailyRate||0;
+  const absTotal=absCnt*daily*2; // dia de falta + DSR
+  return Math.max(0,gross-inss-irrf-otherDiscounts-absTotal-delays+bonuses);
+}
+function calcAbsTotal(sal){
+  const absCnt=(sal?.absentDays||[]).length;
+  return absCnt*(sal?.dailyRate||0)*2;
 }
 function calcVRBal(m){
   const d=getMD(m);
@@ -1011,12 +1032,54 @@ function rRep(chart){
 // ═══════════════════════════════════════════════════════════════════
 // SALARY SCREEN
 // ═══════════════════════════════════════════════════════════════════
+function renderCal(m){
+  const d=getMD(m),absDays=d.salary?.absentDays||[];
+  const[y,mo]=m.split('-').map(Number);
+  const firstDow=new Date(y,mo-1,1).getDay();
+  const daysInMo=new Date(y,mo,0).getDate();
+  const todayDay=mk()===m?new Date().getDate():-1;
+  const heads=[{l:'Dom',w:true},{l:'Seg',w:false},{l:'Ter',w:false},{l:'Qua',w:false},{l:'Qui',w:false},{l:'Sex',w:false},{l:'Sáb',w:true}];
+  let html=`<div class="calgrid">${heads.map(h=>`<div class="calhead${h.w?' we':''}">${h.l}</div>`).join('')}</div><div class="calgrid">`;
+  for(let i=0;i<firstDow;i++)html+=`<div class="calday empty"></div>`;
+  for(let day=1;day<=daysInMo;day++){
+    const dow=(firstDow+day-1)%7;
+    const isWe=dow===0||dow===6;
+    const isAbs=absDays.includes(day);
+    const isToday=day===todayDay;
+    if(isWe){html+=`<div class="calday we">${day}</div>`;}
+    else{html+=`<div class="calday wd${isAbs?' abs':''}${isToday&&!isAbs?' today':''}" onclick="toggleAbs(${day})">${day}</div>`;}
+  }
+  html+='</div>';
+  return html;
+}
+function toggleAbs(day){
+  const m=S.selectedMonth,d=getMD(m);
+  if(!d.salary)d.salary={gross:0,inss:0,irrf:0,otherDiscounts:0,delays:0,bonuses:0,netExpected:0,netReceived:null,absentDays:[],dailyRate:0};
+  if(!d.salary.absentDays)d.salary.absentDays=[];
+  const idx=d.salary.absentDays.indexOf(day);
+  if(idx>=0)d.salary.absentDays.splice(idx,1);
+  else d.salary.absentDays.push(day);
+  save();rSal();
+}
 function rSal(){
   const m=S.selectedMonth,d=getMD(m),sal=d.salary;
+  const absDays=sal?.absentDays||[];
+  const absCnt=absDays.length;
+  const daily=sal?.dailyRate||0;
+  const absTotal=absCnt*daily*2;
   const preview=calcNet(sal);
-  const totalDisc=(sal?.inss||0)+(sal?.irrf||0)+(sal?.otherDiscounts||0)+(sal?.absences||0)+(sal?.delays||0);
+  const totalStaticDisc=(sal?.inss||0)+(sal?.irrf||0)+(sal?.otherDiscounts||0)+(sal?.delays||0);
   const recVal=sal?.netReceived!=null?sal.netReceived:'';
   const hasRec=sal?.netReceived!=null;
+
+  const absSummaryHTML=absCnt>0&&daily>0?`
+    <div class="abs-summary">
+      <div style="font-size:12px;font-weight:700;color:var(--expense);margin-bottom:8px">📅 ${absCnt} dia${absCnt>1?'s':''} de falta registrado${absCnt>1?'s':''}</div>
+      <div class="sr"><span class="sl">Desconto faltas (${absCnt}d × ${fmt(daily)})</span><span class="sv" style="color:var(--expense)">-${fmt(absCnt*daily)}</span></div>
+      <div class="sr"><span class="sl" style="display:flex;align-items:center;gap:6px">DSR <span class="dsr-tag">Descanso Semanal</span></span><span class="sv" style="color:var(--expense)">-${fmt(absCnt*daily)}</span></div>
+      <div class="div"></div>
+      <div class="sr bold"><span class="sl">Total desconto faltas</span><span class="sv" style="color:var(--expense)">-${fmt(absTotal)}</span></div>
+    </div>`:absCnt>0&&!daily?`<div style="font-size:12px;color:var(--warning);margin-top:6px">⚠️ Informe o valor por dia para calcular o desconto.</div>`:'';
 
   document.getElementById('p-salary').innerHTML=`
     <div class="ph">
@@ -1026,30 +1089,54 @@ function rSal(){
     </div>
     ${mselHTML()}
     <div class="scroll">
+      <!-- PREVIEW -->
       <div class="card prevcard" style="border-color:var(--income)44;border-width:1.5px">
         <div class="prevlbl">Salário líquido previsto</div>
         <div class="prevval" style="color:var(--income)" id="sal-preview">${fmt(preview)}</div>
         ${hasRec?`<div class="recrow"><span style="font-size:13px;color:var(--muted)">Recebido:</span><span style="font-size:15px;font-weight:700;color:var(--income)">${fmt(sal.netReceived)}</span></div>`:''}
       </div>
+      <!-- DEMONSTRATIVO -->
       ${(sal?.gross||0)>0?`<div class="card">
         <div class="stitle">Demonstrativo</div>
         <div class="sr"><span class="sl">Salário bruto</span><span class="sv" style="color:var(--income)">${fmt(sal.gross)}</span></div>
-        ${totalDisc>0?`<div class="sr"><span class="sl">Total de descontos</span><span class="sv" style="color:var(--expense)">-${fmt(totalDisc)}</span></div>`:''}
+        ${totalStaticDisc>0?`<div class="sr"><span class="sl">Descontos fixos</span><span class="sv" style="color:var(--expense)">-${fmt(totalStaticDisc)}</span></div>`:''}
+        ${absTotal>0?`<div class="sr"><span class="sl">Desconto faltas + DSR</span><span class="sv" style="color:var(--expense)">-${fmt(absTotal)}</span></div>`:''}
         ${(sal?.bonuses||0)>0?`<div class="sr"><span class="sl">Bônus/adicionais</span><span class="sv" style="color:var(--income)">+${fmt(sal.bonuses)}</span></div>`:''}
         <div class="div"></div>
         <div class="sr bold"><span class="sl">Líquido previsto</span><span class="sv" style="color:var(--income)">${fmt(preview)}</span></div>
       </div>`:''}
+      <!-- SALARIO BRUTO -->
       <div class="gtitle">Salário Bruto</div>
       <div class="ff"><div class="flbl">Salário bruto (R$)</div><input class="finp" id="sal-gross" type="number" inputmode="decimal" value="${sal?.gross||''}" placeholder="Ex: 5000,00" oninput="updateSalPrev()"/></div>
+      <!-- DESCONTOS FIXOS -->
       <div class="gtitle">Descontos</div>
       <div class="ff"><div class="flbl">INSS (R$)</div><input class="finp" id="sal-inss" type="number" inputmode="decimal" value="${sal?.inss||''}" placeholder="Ex: 600,00" oninput="updateSalPrev()"/></div>
       <div class="ff"><div class="flbl">IRRF (R$)</div><input class="finp" id="sal-irrf" type="number" inputmode="decimal" value="${sal?.irrf||''}" placeholder="Ex: 0,00" oninput="updateSalPrev()"/></div>
       <div class="ff"><div class="flbl">Outros descontos (R$)</div><input class="finp" id="sal-other" type="number" inputmode="decimal" value="${sal?.otherDiscounts||''}" placeholder="Ex: 100,00" oninput="updateSalPrev()"/></div>
-      <div class="gtitle">Faltas e Atrasos</div>
-      <div class="ff"><div class="flbl">Desconto por faltas (R$)</div><input class="finp" id="sal-abs" type="number" inputmode="decimal" value="${sal?.absences||''}" placeholder="Ex: 150,00" oninput="updateSalPrev()"/></div>
+      <!-- FALTAS + CALENDARIO -->
+      <div class="gtitle">Faltas e DSR</div>
+      <div class="ff" style="margin-bottom:0">
+        <div class="flbl">Valor por dia (R$)</div>
+        <input class="finp" id="sal-daily" type="number" inputmode="decimal" value="${sal?.dailyRate||''}" placeholder="Ex: 38,08" oninput="updateSalPrev()"/>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:8px;padding:0 2px">
+        💡 Cada dia de falta desconta o dia + DSR (mesmo valor). Toque nos dias abaixo para marcar as faltas.
+      </div>
+      <div class="calwrap">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <span style="font-size:13px;font-weight:700;color:var(--text)">📅 Marcar dias de falta</span>
+          ${absCnt>0?`<span style="font-size:12px;font-weight:700;color:var(--expense)">${absCnt} falta${absCnt>1?'s':''}</span>`:''}
+        </div>
+        ${renderCal(m)}
+        ${absSummaryHTML}
+        ${absCnt>0?`<div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px">${absDays.sort((a,b)=>a-b).map(day=>`<span style="background:var(--expense)22;color:var(--expense);font-size:11px;font-weight:700;padding:3px 8px;border-radius:8px">Dia ${p(day)}</span>`).join('')}</div>`:''}
+      </div>
+      <!-- ATRASOS -->
       <div class="ff"><div class="flbl">Desconto por atrasos (R$)</div><input class="finp" id="sal-del" type="number" inputmode="decimal" value="${sal?.delays||''}" placeholder="Ex: 0,00" oninput="updateSalPrev()"/></div>
+      <!-- BONUS -->
       <div class="gtitle">Bônus e Adicionais</div>
       <div class="ff"><div class="flbl">Bônus / adicionais (R$)</div><input class="finp" id="sal-bon" type="number" inputmode="decimal" value="${sal?.bonuses||''}" placeholder="Ex: 200,00" oninput="updateSalPrev()"/></div>
+      <!-- RECEBIDO -->
       <div class="gtitle">Valor Recebido</div>
       <label class="ff" style="display:flex;align-items:center;gap:12px;cursor:pointer">
         <span style="flex:1;font-size:14px;font-weight:600;color:var(--text)">Já recebi o salário</span>
@@ -1063,8 +1150,12 @@ function rSal(){
     </div>`;
 }
 function updateSalPrev(){
+  const m=S.selectedMonth,d=getMD(m);
+  const absCnt=(d.salary?.absentDays||[]).length;
   const g=v=>parseFloat(document.getElementById(v)?.value||0)||0;
-  const net=Math.max(0,g('sal-gross')-g('sal-inss')-g('sal-irrf')-g('sal-other')-g('sal-abs')-g('sal-del')+g('sal-bon'));
+  const daily=g('sal-daily');
+  const absTotal=absCnt*daily*2;
+  const net=Math.max(0,g('sal-gross')-g('sal-inss')-g('sal-irrf')-g('sal-other')-absTotal-g('sal-del')+g('sal-bon'));
   const el=document.getElementById('sal-preview');
   if(el)el.textContent=fmt(net);
 }
@@ -1076,9 +1167,9 @@ function saveSalary(){
   const g=id=>parseFloat(document.getElementById(id)?.value||0)||0;
   const hasR=document.getElementById('sal-hasr')?.checked;
   const recV=hasR?g('sal-rec'):null;
-  const sal={gross:g('sal-gross'),inss:g('sal-inss'),irrf:g('sal-irrf'),otherDiscounts:g('sal-other'),absences:g('sal-abs'),delays:g('sal-del'),bonuses:g('sal-bon'),netReceived:recV};
-  sal.netExpected=calcNet(sal);
   const m=S.selectedMonth,d=getMD(m);
+  const sal={gross:g('sal-gross'),inss:g('sal-inss'),irrf:g('sal-irrf'),otherDiscounts:g('sal-other'),dailyRate:g('sal-daily'),absentDays:d.salary?.absentDays||[],delays:g('sal-del'),bonuses:g('sal-bon'),netReceived:recV};
+  sal.netExpected=calcNet(sal);
   d.salary=sal;save();
   alert('Salário salvo!');goto('home');
 }
