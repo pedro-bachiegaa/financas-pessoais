@@ -1685,11 +1685,12 @@ function importVRAgo2026(){
     {date:'2026-08-13',description:'LANA CAFE LANCHONETE',amount:15.50},
     {date:'2026-08-13',description:'MERCEARIA EDUZZE',amount:16.20},
     {date:'2026-08-14',description:'RM LANCHONETE LTDA',amount:5.00},
+    {date:'2026-08-14',description:'SUPERMERCADO RODRAF',amount:36.05},
   ].map(t=>({id:uid(),category:'food',paymentMethod:'vr',...t}));
   const semVR=S.data[m].expenses.filter(e=>e.paymentMethod!=='vr');
   S.data[m].expenses=semVR.concat(novos);
   save();
-  alert('VR agosto 2026 importado! 24 transacoes. Recarga: R$ 635,80 + R$ 4,13 de saldo anterior.');
+  alert('VR agosto 2026 importado! 25 transacoes. Recarga: R$ 635,80 + R$ 4,13 de saldo anterior.');
   goto('benefits');
 }
 
