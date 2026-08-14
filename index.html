@@ -410,7 +410,7 @@ let S = {
 let currentPage='home', currentTab='vr', currentChart='cats';
 let billsOpen=false, expFilter=null, editingExp=null;
 let salEditing=false, vrEditing=false, topRechargeOpen=false, topBalEditing=false;
-let billFormOpen=false, catFormOpen=false;
+let billFormOpen=false, catFormOpen=false, investFormOpen=false, extraIncomeFormOpen=false;
 let newCatColor='#EF4444';
 
 function defMonthData(){
@@ -418,7 +418,9 @@ function defMonthData(){
     salary:{gross:0,inss:0,irrf:0,otherDiscounts:0,absences:0,delays:0,bonuses:0,netExpected:0,netReceived:null},
     expenses:[],fixedBills:[],
     vr:{received:0,receivedDate:null},
-    top:{startBalance:0,recharges:[]}
+    top:{startBalance:0,recharges:[]},
+    investments:[],
+    extraIncome:[]
   };
 }
 
@@ -489,11 +491,20 @@ function calcAbsTotal(sal){
   const absCnt=(sal?.absentDays||[]).length;
   return absCnt*(sal?.dailyRate||0)*2;
 }
+function calcVRCarryOver(m){
+  const d=getMD(m);
+  if(typeof d.vr?.carryOver==='number')return d.vr.carryOver;
+  const [y,mo]=m.split('-').map(Number);
+  const pm=new Date(y,mo-2,1);
+  const prev=pm.getFullYear()+'-'+String(pm.getMonth()+1).padStart(2,'0');
+  if(!S.data[prev])return 0;
+  return calcVRBal(prev);
+}
 function calcVRBal(m){
   const d=getMD(m);
   const rec=d.vr?.received||0;
-  const spent=d.expenses.filter(e=>e.paymentMethod==='vr').reduce((a,e)=>a+e.amount,0);
-  return Math.max(0,rec-spent);
+  const spent=(d.expenses||[]).filter(e=>e.paymentMethod==='vr').reduce((a,e)=>a+e.amount,0);
+  return Math.max(0,calcVRCarryOver(m)+rec-spent);
 }
 function calcTOPBal(m){
   const d=getMD(m);
@@ -506,10 +517,18 @@ function calcExp(m){
   return getMD(m).expenses.filter(e=>e.paymentMethod!=='vr'&&e.paymentMethod!=='top').reduce((a,e)=>a+e.amount,0);
 }
 function calcBills(m){return getMD(m).fixedBills.reduce((a,b)=>a+b.amount,0)}
+function calcExtraIncome(m){return(getMD(m).extraIncome||[]).reduce((a,e)=>a+e.amount,0)}
+function calcAvailCarryOver(m){
+  const [y,mo]=m.split('-').map(Number);
+  const pm=new Date(y,mo-2,1);
+  const prev=pm.getFullYear()+'-'+String(pm.getMonth()+1).padStart(2,'0');
+  if(!S.data[prev])return 0;
+  return Math.max(0,calcAvail(prev));
+}
 function calcAvail(m){
   const d=getMD(m);
   const net=d.salary?.netReceived!=null?d.salary.netReceived:calcNet(d.salary);
-  return net-calcExp(m)-calcBills(m);
+  return net+calcExtraIncome(m)+calcAvailCarryOver(m)-calcExp(m)-calcBills(m);
 }
 function calcCommit(m){
   const d=getMD(m);
@@ -670,6 +689,9 @@ function rHome(){
   const commit=calcCommit(m);
   const dailyAvg=calcDailyAvg(m);
   const dailyLim=calcDailyLim(m);
+  const carryOver=calcAvailCarryOver(m);
+  const extraInc=calcExtraIncome(m);
+  const extraList=d.extraIncome||[];
   const vrSpent=expenses.filter(e=>e.paymentMethod==='vr').reduce((a,e)=>a+e.amount,0);
   const topSpent=expenses.filter(e=>e.paymentMethod==='top').reduce((a,e)=>a+e.amount,0);
   const topRec=(top?.recharges||[]).reduce((a,r)=>a+r.amount,0);
@@ -735,11 +757,28 @@ function rHome(){
         ${(salary?.bonuses||0)>0?`<div class="sr"><span class="sl">Bônus/adicionais</span><span class="sv" style="color:var(--income)">+${fmt(salary.bonuses)}</span></div>`:''}
         <div class="sr"><span class="sl">Salário líq. previsto</span><span class="sv">${fmt(netE)}</span></div>
         ${salary?.netReceived!=null?`<div class="sr"><span class="sl">Salário líq. recebido</span><span class="sv" style="color:var(--income)">${fmt(salary.netReceived)}</span></div>`:''}
+        ${carryOver>0?`<div class="sr"><span class="sl">💰 Saldo do mês anterior</span><span class="sv" style="color:var(--income)">+${fmt(carryOver)}</span></div>`:''}
+        ${extraInc>0?`<div class="sr"><span class="sl">✨ Ganhos extras</span><span class="sv" style="color:var(--income)">+${fmt(extraInc)}</span></div>`:''}
         <div class="div"></div>
         <div class="sr"><span class="sl">Total de gastos</span><span class="sv" style="color:var(--expense)">${fmt(totalExp)}</span></div>
         <div class="sr"><span class="sl">Total de contas</span><span class="sv" style="color:var(--expense)">${fmt(totalBills)}</span></div>
         <div class="sr bold"><span class="sl">Dinheiro disponível</span><span class="sv" style="color:${availColor}">${fmt(avail)}</span></div>
       </div>
+
+      <!-- GANHOS EXTRAS -->
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div style="font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted)">Ganhos extras</div>
+        <button class="sall" onclick="extraIncomeFormOpen=!extraIncomeFormOpen;rHome()">+ Adicionar</button>
+      </div>
+      ${extraIncomeFormOpen?`<div class="card">
+        <div style="font-size:14px;font-weight:700;margin-bottom:10px">Novo ganho extra</div>
+        <div class="ff"><div class="flbl">Descrição</div><input class="finp" id="ei-desc" placeholder="Ex: Freelance, presente..."/></div>
+        <div class="ff"><div class="flbl">Valor (R$)</div><input class="finp" id="ei-amt" type="number" inputmode="decimal" placeholder="Ex: 300,00"/></div>
+        <div class="ff"><div class="flbl">Data</div><input class="finp" id="ei-date" type="date" value="${todayISO()}"/></div>
+        <button class="abtn" style="background:var(--income)" onclick="addExtraIncome()">Salvar ganho</button>
+      </div>`:''}
+      ${extraList.length?extraList.map(e=>`<div class="hitem"><span class="hico">✨</span><span class="hdesc">${e.description}</span><span class="hdate">${fmtDate(e.date)}</span><span class="hamt" style="color:var(--income)">+${fmt(e.amount)}</span><button class="edel" onclick="delExtraIncome('${e.id}')">🗑</button></div>`).join(''):''}
+
 
       <!-- BENEFITS -->
       <div class="brow">
@@ -928,15 +967,17 @@ function rBen(tab){
     <div class="ph"><div class="pt">Benefícios</div></div>
     ${mselHTML()}
     <div class="ptabs">
-      <button class="ptab${currentTab==='vr'?' on':''}" onclick="rBen('vr')">🍽️ Vale Refeição</button>
-      <button class="ptab${currentTab==='top'?' on':''}" onclick="rBen('top')">🚌 Cartão TOP</button>
+      <button class="ptab${currentTab==='vr'?' on':''}" onclick="rBen('vr')">🍽️ VR</button>
+      <button class="ptab${currentTab==='top'?' on':''}" onclick="rBen('top')">🚌 TOP</button>
+      <button class="ptab${currentTab==='invest'?' on':''}" onclick="rBen('invest')">📈 Invest.</button>
     </div>
-    <div class="scroll" id="ben-content">${currentTab==='vr'?rVR():rTOP()}</div>`;
+    <div class="scroll" id="ben-content">${currentTab==='vr'?rVR():currentTab==='top'?rTOP():rInvest()}</div>`;
 }
 function rVR(){
   const m=S.selectedMonth,d=getMD(m);
   const{expenses,vr}=d;
   const vrBal=calcVRBal(m);
+  const vrCarry=calcVRCarryOver(m);
   const vrSpent=expenses.filter(e=>e.paymentMethod==='vr').reduce((a,e)=>a+e.amount,0);
   const vrDaysLeft=calcVRDaysLeft(m);
   const vrDailyRec=calcVRDailyRec(m);
@@ -957,6 +998,7 @@ function rVR(){
     <div class="balhead"><div class="balico" style="background:var(--vr)22">🍽️</div><div style="flex:1"><div class="ballbl">Saldo VR</div><div class="balval" style="color:var(--vr)">${fmt(vrBal)}</div></div>
     <button class="ebtn" onclick="vrEditing=!vrEditing;rBen('vr')">${vrEditing?'✕':'✏️'}</button></div>
     ${vr?.received>0?`<div><div class="barbg"><div class="barfill" style="width:${pct}%;background:${pctColor}"></div></div><div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:4px"><span>Gasto: ${fmt(vrSpent)} (${pct.toFixed(0)}%)</span><span>Total: ${fmt(vr.received)}</span></div></div><div class="div"></div>`:''}
+    ${vrCarry>0?`<div class="sr"><span class="sl">💰 Saldo mês anterior</span><span class="sv" style="color:var(--income)">+${fmt(vrCarry)}</span></div>`:''}
     <div class="sr"><span class="sl">Total recebido</span><span class="sv" style="color:var(--vr)">${fmt(vr?.received||0)}</span></div>
     <div class="sr"><span class="sl">Total gasto</span><span class="sv" style="color:var(--expense)">${fmt(vrSpent)}</span></div>
     <div class="sr bold"><span class="sl">Saldo atual</span><span class="sv" style="color:var(--vr)">${fmt(vrBal)}</span></div>
@@ -971,8 +1013,42 @@ function saveVR(){
   const rec=parseFloat(document.getElementById('vr-rec')?.value||0)||0;
   const date=document.getElementById('vr-date')?.value||todayISO();
   const m=S.selectedMonth,d=getMD(m);
+  const prevCarry=d.vr?.carryOver;
   d.vr={received:rec,receivedDate:date};
+  if(typeof prevCarry==='number')d.vr.carryOver=prevCarry;
   vrEditing=false;save();rBen('vr');
+}
+function addExtraIncome(){
+  const desc=document.getElementById('ei-desc')?.value?.trim();
+  const amt=parseFloat(document.getElementById('ei-amt')?.value||0);
+  const date=document.getElementById('ei-date')?.value||todayISO();
+  if(!desc||!amt){alert('Preencha descrição e valor.');return;}
+  const d=getMD(S.selectedMonth);
+  if(!d.extraIncome)d.extraIncome=[];
+  d.extraIncome.push({id:uid(),date,description:desc,amount:amt});
+  extraIncomeFormOpen=false;save();rHome();
+}
+function delExtraIncome(id){
+  if(!confirm('Excluir este ganho?'))return;
+  const d=getMD(S.selectedMonth);
+  d.extraIncome=(d.extraIncome||[]).filter(e=>e.id!==id);
+  save();rHome();
+}
+function addInvestment(){
+  const desc=document.getElementById('inv-desc')?.value?.trim();
+  const amt=parseFloat(document.getElementById('inv-amt')?.value||0);
+  const date=document.getElementById('inv-date')?.value||todayISO();
+  if(!desc||!amt){alert('Preencha descrição e valor.');return;}
+  const d=getMD(S.selectedMonth);
+  if(!d.investments)d.investments=[];
+  d.investments.push({id:uid(),date,description:desc,amount:amt});
+  investFormOpen=false;save();rBen('invest');
+}
+function delInvestment(id){
+  if(!confirm('Excluir este investimento?'))return;
+  const d=getMD(S.selectedMonth);
+  d.investments=(d.investments||[]).filter(e=>e.id!==id);
+  save();rBen('invest');
 }
 function rTOP(){
   const m=S.selectedMonth,d=getMD(m);
@@ -1044,6 +1120,53 @@ function delTOPRecharge(id){
 }
 
 // ═══════════════════════════════════════════════════════════════════
+function rInvest(){
+  const m=S.selectedMonth,d=getMD(m);
+  const list=d.investments||[];
+  const thisMo=list.reduce((a,e)=>a+e.amount,0);
+
+  // total acumulado de todos os meses
+  const total=Object.values(S.data).reduce((a,md)=>{
+    return a+(md.investments||[]).reduce((b,e)=>b+e.amount,0);
+  },0);
+
+  // histórico mensal (últimos 6 meses)
+  const months=getMonths(6);
+  const moHist=months.map(mo=>{
+    const mv=(getMD(mo).investments||[]).reduce((a,e)=>a+e.amount,0);
+    return{label:mkLabel(mo,true),val:mv};
+  }).filter(x=>x.val>0);
+
+  const form=investFormOpen?`<div class="card">
+    <div style="font-size:14px;font-weight:700;margin-bottom:10px">Novo investimento</div>
+    <div class="ff"><div class="flbl">Descrição</div><input class="finp" id="inv-desc" placeholder="Ex: Poupança, CDB..."/></div>
+    <div class="ff"><div class="flbl">Valor (R$)</div><input class="finp" id="inv-amt" type="number" inputmode="decimal" placeholder="Ex: 200,00"/></div>
+    <div class="ff"><div class="flbl">Data</div><input class="finp" id="inv-date" type="date" value="${todayISO()}"/></div>
+    <button class="abtn" style="background:var(--income)" onclick="addInvestment()">Salvar investimento</button>
+  </div>`:'';
+
+  const histHTML=list.length?list.map(e=>`<div class="hitem"><span class="hico">📈</span><span class="hdesc">${e.description}</span><span class="hdate">${fmtDate(e.date)}</span><span class="hamt" style="color:var(--income)">+${fmt(e.amount)}</span><button class="edel" onclick="delInvestment('${e.id}')">🗑</button></div>`).join(''):'<div class="card"><div style="text-align:center;color:var(--muted);font-size:13px;padding:8px">Nenhum investimento este mês.</div></div>';
+
+  return`
+  <div class="card" style="border-color:var(--income)44;background:var(--income)08">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
+      <div style="width:44px;height:44px;border-radius:22px;background:var(--income)22;display:flex;align-items:center;justify-content:center;font-size:22px">📈</div>
+      <div style="flex:1">
+        <div style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase">Total acumulado</div>
+        <div style="font-size:26px;font-weight:800;color:var(--income)">${fmt(total)}</div>
+      </div>
+    </div>
+    <div class="sr"><span class="sl">Investido este mês</span><span class="sv" style="color:var(--income)">${fmt(thisMo)}</span></div>
+    ${moHist.length>1?`<div class="div"></div><div style="font-size:12px;color:var(--muted);margin-bottom:6px">Histórico</div>${moHist.map(x=>`<div class="sr"><span class="sl">${x.label}</span><span class="sv" style="color:var(--income)">${fmt(x.val)}</span></div>`).join('')}`:''}
+  </div>
+  <div style="display:flex;justify-content:space-between;align-items:center">
+    <div style="font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted)">Este mês</div>
+    <button class="sall" onclick="investFormOpen=!investFormOpen;rBen('invest')">+ Adicionar</button>
+  </div>
+  ${form}
+  ${histHTML}`;
+}
+
 // REPORTS SCREEN
 // ═══════════════════════════════════════════════════════════════════
 function rRep(chart){
