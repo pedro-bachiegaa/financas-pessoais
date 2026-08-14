@@ -249,6 +249,14 @@ input:checked+.togsl::before{transform:translateX(22px)}
 .calday.today{border-color:var(--primary)}
 .abs-summary{background:var(--expense)12;border:1px solid var(--expense)44;border-radius:12px;padding:12px;margin-top:8px}
 .dsr-tag{display:inline-block;font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:var(--warning)22;color:var(--warning)}
+/* BACKUP CARDS */
+.bkcard{border-radius:14px;padding:16px;border:1.5px solid;margin-bottom:10px}
+.bkrow{display:flex;gap:10px;margin-top:10px}
+.bkbtn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:14px 10px;border-radius:12px;border:none;cursor:pointer;font-size:12px;font-weight:700;transition:opacity .15s}
+.bkbtn:active{opacity:.8}
+.bkbtn .bkico{font-size:24px}
+.bkbtn .bktxt{line-height:1.3;text-align:center}
+.bkcode{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px;font-size:11px;color:var(--muted);font-family:monospace;word-break:break-all;margin-top:8px;max-height:80px;overflow:hidden}
 </style>
 </head>
 <body class="dark">
@@ -1232,12 +1240,51 @@ function rSet(){
       <div style="font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);margin-top:4px">Categorias padrão</div>
       <div class="card"><div class="defcatsgrid">${CATS.map(c=>`<div class="dcat"><div class="catcircle" style="background:${c.c}22;width:28px;height:28px">${c.e}</div><span>${c.name}</span></div>`).join('')}</div></div>
 
+      <!-- BACKUP -->
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);margin-top:4px">Backup e Restauração</div>
+      <div class="bkcard" style="border-color:var(--income)44;background:var(--income)08">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+          <span style="font-size:22px">💾</span>
+          <div>
+            <div style="font-size:14px;font-weight:700;color:var(--text)">Salvar backup (arquivo)</div>
+            <div style="font-size:12px;color:var(--muted)">Baixa um arquivo .json com todos os seus dados</div>
+          </div>
+        </div>
+        ${S._lastBackup?`<div style="font-size:11px;color:var(--muted);margin-bottom:8px">Último backup: ${new Date(S._lastBackup).toLocaleString('pt-BR')}</div>`:'<div style="font-size:11px;color:var(--warning);margin-bottom:8px">⚠️ Nenhum backup realizado ainda</div>'}
+        <div class="bkrow">
+          <button class="bkbtn" style="background:var(--income);color:#fff" onclick="exportJSON()">
+            <span class="bkico">⬇️</span><span class="bktxt">Baixar<br>backup</span>
+          </button>
+          <button class="bkbtn" style="background:var(--surface);color:var(--text);border:1px solid var(--border)" onclick="importJSON()">
+            <span class="bkico">⬆️</span><span class="bktxt">Restaurar<br>backup</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="bkcard" style="border-color:var(--top)44;background:var(--top)08">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+          <span style="font-size:22px">📋</span>
+          <div>
+            <div style="font-size:14px;font-weight:700;color:var(--text)">Trocar de dispositivo</div>
+            <div style="font-size:12px;color:var(--muted)">Copie o código e cole em outro celular ou computador</div>
+          </div>
+        </div>
+        <div class="bkrow">
+          <button class="bkbtn" style="background:var(--top);color:#fff" onclick="copyDataCode()">
+            <span class="bkico">📤</span><span class="bktxt">Copiar<br>código</span>
+          </button>
+          <button class="bkbtn" style="background:var(--surface);color:var(--text);border:1px solid var(--border)" onclick="pasteDataCode()">
+            <span class="bkico">📥</span><span class="bktxt">Colar<br>código</span>
+          </button>
+        </div>
+      </div>
+
       <!-- Danger -->
-      <div style="font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);margin-top:4px">Dados</div>
-      <div class="card"><div style="font-size:13px;color:var(--muted);margin-bottom:12px">Apaga todos os dados permanentemente.</div>
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);margin-top:4px">Zona de Perigo</div>
+      <div class="card"><div style="font-size:13px;color:var(--muted);margin-bottom:12px">Apaga todos os dados permanentemente. Faça um backup antes!</div>
         <button class="dbtn" onclick="resetData()">⚠️ Resetar todos os dados</button>
       </div>
-      <div class="apfooter">Finanças Pessoais v1.0<br>Dados armazenados localmente no navegador.</div>
+      <div class="apfooter">Finanças Pessoais v1.0<br>Dados salvos localmente · Faça backups regulares</div>
     </div>`;
 }
 function toggleTheme(){
@@ -1280,6 +1327,66 @@ function resetData(){
   localStorage.removeItem('fp_v2');
   S={theme:S.theme,selectedMonth:mk(),payDay:5,data:{},fixedBillTemplates:[],customCategories:[]};
   save();goto('home');
+}
+
+// ─── BACKUP / RESTORE ────────────────────────────────────────────
+function exportJSON(){
+  try{
+    const payload={...S,_backup:{date:new Date().toISOString(),version:'fp_v2'}};
+    const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;a.download=`financas-backup-${todayISO()}.json`;
+    document.body.appendChild(a);a.click();
+    document.body.removeChild(a);URL.revokeObjectURL(url);
+    S._lastBackup=new Date().toISOString();save();
+    alert('✅ Backup salvo!\nGuarde o arquivo em local seguro (nuvem, e-mail, pendrive).');
+    rSet();
+  }catch(e){alert('Erro ao exportar: '+e.message);}
+}
+function importJSON(){
+  const inp=document.createElement('input');
+  inp.type='file';inp.accept='.json';
+  inp.onchange=e=>{
+    const file=e.target.files[0];if(!file)return;
+    const reader=new FileReader();
+    reader.onload=ev=>{
+      try{
+        const d=JSON.parse(ev.target.result);
+        if(typeof d.data==='undefined')throw new Error('Arquivo não reconhecido.');
+        if(!confirm(`Restaurar backup de ${d._backup?.date?new Date(d._backup.date).toLocaleString('pt-BR'):'data desconhecida'}?\n\nOs dados atuais serão substituídos.`))return;
+        Object.assign(S,d);
+        delete S._backup;
+        save();
+        alert('✅ Dados restaurados com sucesso!');
+        goto('home');
+      }catch(err){alert('❌ Arquivo inválido: '+err.message);}
+    };
+    reader.readAsText(file);
+  };
+  inp.click();
+}
+function copyDataCode(){
+  try{
+    const code=btoa(unescape(encodeURIComponent(JSON.stringify(S))));
+    navigator.clipboard.writeText(code).then(()=>{
+      alert('✅ Código copiado!\nCole em outro dispositivo em Configurações → Colar código de dados.');
+    }).catch(()=>{
+      // fallback: show in prompt
+      prompt('Copie o código abaixo (Ctrl+A → Ctrl+C):',code);
+    });
+  }catch(e){alert('Erro: '+e.message);}
+}
+function pasteDataCode(){
+  const code=prompt('Cole o código de dados aqui:');
+  if(!code||!code.trim())return;
+  try{
+    const d=JSON.parse(decodeURIComponent(escape(atob(code.trim()))));
+    if(typeof d.data==='undefined')throw new Error('Código inválido.');
+    if(!confirm('Substituir os dados atuais pelos dados do código colado?'))return;
+    Object.assign(S,d);save();
+    alert('✅ Dados importados!');goto('home');
+  }catch(e){alert('❌ Código inválido. Verifique se copiou tudo corretamente.');}
 }
 
 // ═══════════════════════════════════════════════════════════════════
