@@ -287,6 +287,17 @@ input:checked+.togsl::before{transform:translateX(22px)}
   </div>
 </div>
 <div id="sync-toast">☁️ Sincronizado</div>
+<div id="import-modal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.7);align-items:center;justify-content:center">
+  <div style="background:var(--card);border-radius:16px;padding:20px;width:90%;max-width:480px;max-height:80vh;overflow-y:auto">
+    <div style="font-size:16px;font-weight:700;color:var(--text);margin-bottom:12px">📥 Importar Transações</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:10px">Cole um array JSON de transações abaixo. Formato: <code style="font-size:11px;background:var(--bg);padding:2px 6px;border-radius:4px">[{"date":"2026-08-01","description":"...","amount":10.00,"category":"market","paymentMethod":"pix"}]</code></div>
+    <textarea id="import-json-input" style="width:100%;height:140px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:10px;font-size:12px;resize:vertical;box-sizing:border-box" placeholder='[{"date":"2026-08-01","description":"...","amount":10.00,"category":"market","paymentMethod":"pix"}]'></textarea>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button class="btn-save" style="flex:1" onclick="doImportJSON()">Importar</button>
+      <button class="btn-cancel" style="flex:1" onclick="closeImportModal()">Cancelar</button>
+    </div>
+  </div>
+</div>
 <div id="app">
   <!-- PAGES -->
   <div id="p-home" class="page active"></div>
@@ -843,7 +854,7 @@ function rExp(){
   const billsHTML=billsOpen?`<div class="blist">${fixedBills.map(b=>`<div class="brow2" onclick="toggleBill('${b.id}')"><div class="bchk${b.paid?' paid':''}">${b.paid?'✓':''}</div><div style="flex:1"><div style="font-size:13px;font-weight:600;color:var(--text);text-decoration:${b.paid?'line-through':'none'}">${b.name}</div><div style="font-size:11px;color:var(--muted)">Vence dia ${b.dueDay}</div></div><span style="font-size:13px;font-weight:700;color:${b.paid?'var(--muted)':'var(--expense)'}">${fmt(b.amount)}</span></div>`).join('')}</div>`:'';
 
   document.getElementById('p-expenses').innerHTML=`
-    <div class="ph"><div class="pt">Gastos</div><button class="hbtn" onclick="openExpModal(null)">＋</button></div>
+    <div class="ph"><div class="pt">Gastos</div><button class="hbtn" style="margin-right:8px;font-size:12px;padding:6px 10px" onclick="openImportModal()">📥</button><button class="hbtn" onclick="openExpModal(null)">＋</button></div>
     ${mselHTML()}
     <div class="sbar">
       <div class="sbi"><div class="sbil">Gastos</div><div class="sbiv" style="color:var(--expense)">${fmt(totalExp)}</div></div>
@@ -895,6 +906,31 @@ function delExp(id){
   const m=S.selectedMonth,d=getMD(m);
   d.expenses=d.expenses.filter(e=>e.id!==id);
   save();rPage(currentPage);
+}
+
+function openImportModal(){
+  document.getElementById('import-modal').style.display='flex';
+  document.getElementById('import-json-input').value='';
+}
+function closeImportModal(){document.getElementById('import-modal').style.display='none';}
+function doImportJSON(){
+  const raw=document.getElementById('import-json-input').value.trim();
+  let items;
+  try{items=JSON.parse(raw);}catch(e){alert('JSON inválido: '+e.message);return;}
+  if(!Array.isArray(items)||!items.length){alert('Precisa ser um array com pelo menos 1 item.');return;}
+  const m=S.selectedMonth,d=getMD(m);
+  const valid=items.filter(t=>t.date&&t.amount&&t.description);
+  if(!valid.length){alert('Nenhum item válido. Verifique os campos date, amount, description.');return;}
+  // remove duplicates by _src tag if present
+  const srcTag=valid[0]._src;
+  if(srcTag)d.expenses=d.expenses.filter(e=>e._src!==srcTag);
+  const novos=valid.map(t=>({id:uid(),paymentMethod:t.paymentMethod||'pix',category:t.category||'other',...t}));
+  d.expenses=(d.expenses||[]).concat(novos);
+  save();
+  closeImportModal();
+  const total=novos.reduce((a,e)=>a+Number(e.amount),0);
+  alert(`${novos.length} transações importadas. Total: R$ ${total.toFixed(2)}`);
+  rExp();
 }
 
 // ═══════════════════════════════════════════════════════════════════
