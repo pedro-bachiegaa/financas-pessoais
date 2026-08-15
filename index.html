@@ -28,7 +28,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 #app{max-width:430px;margin:0 auto;min-height:100vh;position:relative}
 .page{display:none;flex-direction:column;min-height:calc(100vh - 68px)}
 .page.active{display:flex}
-.scroll{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px;padding-bottom:100px}
+.scroll{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px;padding-bottom:100px;overscroll-behavior:contain}
+.scroll::-webkit-scrollbar{width:3px}.scroll::-webkit-scrollbar-track{background:transparent}.scroll::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
 /* NAV */
 .bnav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:430px;background:var(--nav);border-top:1px solid var(--nav-b);display:flex;align-items:center;height:68px;z-index:100}
 .nbtn{display:flex;flex-direction:column;align-items:center;gap:2px;background:none;border:none;cursor:pointer;padding:4px 0;color:var(--muted);font-size:10px;font-weight:600;flex:1;transition:color .2s}
@@ -197,7 +198,8 @@ input:checked+.togsl::before{transform:translateX(22px)}
 /* MODAL */
 .mobg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:200}
 .mobg.open{display:block}
-.modal{display:none;position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:430px;background:var(--card);border-radius:20px 20px 0 0;z-index:300;max-height:92vh;overflow-y:auto}
+.modal{display:none;position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:430px;background:var(--card);border-radius:20px 20px 0 0;z-index:300;max-height:92vh;overflow-y:auto;overscroll-behavior:contain}
+.modal::-webkit-scrollbar{width:3px}.modal::-webkit-scrollbar-track{background:transparent}.modal::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
 .modal.open{display:block;animation:slideUp .3s ease}
 @keyframes slideUp{from{transform:translateX(-50%) translateY(100%)}to{transform:translateX(-50%) translateY(0)}}
 .mohandle{width:40px;height:4px;background:var(--border);border-radius:2px;margin:12px auto 0}
@@ -421,7 +423,7 @@ let S = {
 let currentPage='home', currentTab='vr', currentChart='cats';
 let billsOpen=false, expFilter=null, pmFilter=null, editingExp=null;
 let salEditing=false, vrEditing=false, topRechargeOpen=false, topBalEditing=false;
-let billFormOpen=false, catFormOpen=false, investFormOpen=false, extraIncomeFormOpen=false;
+let billFormOpen=false, catFormOpen=false, investFormOpen=false, extraIncomeFormOpen=false, editingExtraIncomeId=null, editingInvestmentId=null;
 let newCatColor='#EF4444';
 
 function defMonthData(){
@@ -807,13 +809,13 @@ function rHome(){
         <button class="sall" onclick="extraIncomeFormOpen=!extraIncomeFormOpen;rHome()">+ Adicionar</button>
       </div>
       ${extraIncomeFormOpen?`<div class="card">
-        <div style="font-size:14px;font-weight:700;margin-bottom:10px">Novo ganho extra</div>
+        <div style="font-size:14px;font-weight:700;margin-bottom:10px">${editingExtraIncomeId?'Editar ganho extra':'Novo ganho extra'}</div>
         <div class="ff"><div class="flbl">Descrição</div><input class="finp" id="ei-desc" placeholder="Ex: Freelance, presente..."/></div>
         <div class="ff"><div class="flbl">Valor (R$)</div><input class="finp" id="ei-amt" type="number" inputmode="decimal" placeholder="Ex: 300,00"/></div>
         <div class="ff"><div class="flbl">Data</div><input class="finp" id="ei-date" type="date" value="${todayISO()}"/></div>
-        <button class="abtn" style="background:var(--income)" onclick="addExtraIncome()">Salvar ganho</button>
+        <button class="abtn" style="background:var(--income)" onclick="addExtraIncome()">${editingExtraIncomeId?'Atualizar ganho':'Salvar ganho'}</button>
       </div>`:''}
-      ${extraList.length?extraList.map(e=>`<div class="hitem"><span class="hico">✨</span><span class="hdesc">${e.description}</span><span class="hdate">${fmtDate(e.date)}</span><span class="hamt" style="color:var(--income)">+${fmt(e.amount)}</span><button class="edel" onclick="delExtraIncome('${e.id}')">🗑</button></div>`).join(''):''}
+      ${extraList.length?extraList.map(e=>`<div class="hitem"><span class="hico">✨</span><span class="hdesc">${e.description}</span><span class="hdate">${fmtDate(e.date)}</span><span class="hamt" style="color:var(--income)">+${fmt(e.amount)}</span><button class="edel" onclick="editExtraIncome('${e.id}')">✏️</button><button class="edel" onclick="delExtraIncome('${e.id}')">🗑</button></div>`).join(''):''}
 
 
       <!-- BENEFITS -->
@@ -881,7 +883,7 @@ function rExp(){
   const billsHTML=billsOpen?`<div class="blist">${fixedBills.map(b=>`<div class="brow2" onclick="toggleBill('${b.id}')"><div class="bchk${b.paid?' paid':''}">${b.paid?'✓':''}</div><div style="flex:1"><div style="font-size:13px;font-weight:600;color:var(--text);text-decoration:${b.paid?'line-through':'none'}">${b.name}</div><div style="font-size:11px;color:var(--muted)">Vence dia ${b.dueDay}</div></div><span style="font-size:13px;font-weight:700;color:${b.paid?'var(--muted)':'var(--expense)'}">${fmt(b.amount)}</span></div>`).join('')}</div>`:'';
 
   document.getElementById('p-expenses').innerHTML=`
-    <div class="ph"><div class="pt">Gastos</div><button class="hbtn" style="margin-right:8px;font-size:12px;padding:6px 10px" onclick="openImportModal()">📥</button><button class="hbtn" onclick="openExpModal(null)">＋</button></div>
+    <div class="ph"><div class="pt">Gastos</div><div style="display:flex;gap:8px"><button class="hbtn" onclick="openImportModal()">📥</button><button class="hbtn" onclick="openExpModal(null)">＋</button></div></div>
     ${mselHTML()}
     <div class="frow" style="padding:4px 16px 0">
       <button class="fchip${!pmFilter?' on':''}" style="${!pmFilter?'background:var(--primary);border-color:var(--primary)':''}" onclick="setPMFilter(null)">Todos</button>
@@ -990,6 +992,7 @@ function openExpModal(exp){
   renderExpForm();
   document.getElementById('mobg').classList.add('open');
   document.getElementById('modal-exp').classList.add('open');
+  document.body.style.overflow='hidden';
   setTimeout(()=>{const a=document.getElementById('exp-amt-inp');if(a&&!isEdit)a.focus();},300);
 }
 function renderExpForm(){
@@ -1029,6 +1032,7 @@ function saveExpense(){
 function closeModal(){
   document.getElementById('mobg').classList.remove('open');
   document.getElementById('modal-exp').classList.remove('open');
+  document.body.style.overflow='';
   editingExp=null;
 }
 
@@ -1099,8 +1103,28 @@ function addExtraIncome(){
   if(!desc||!amt){alert('Preencha descrição e valor.');return;}
   const d=getMD(S.selectedMonth);
   if(!d.extraIncome)d.extraIncome=[];
-  d.extraIncome.push({id:uid(),date,description:desc,amount:amt});
+  if(editingExtraIncomeId){
+    const item=d.extraIncome.find(e=>e.id===editingExtraIncomeId);
+    if(item){item.description=desc;item.amount=amt;item.date=date;}
+    editingExtraIncomeId=null;
+  }else{
+    d.extraIncome.push({id:uid(),date,description:desc,amount:amt});
+  }
   extraIncomeFormOpen=false;save();rHome();
+}
+function editExtraIncome(id){
+  const d=getMD(S.selectedMonth);
+  const item=(d.extraIncome||[]).find(e=>e.id===id);
+  if(!item)return;
+  editingExtraIncomeId=id;
+  extraIncomeFormOpen=true;
+  rHome();
+  setTimeout(()=>{
+    const di=document.getElementById('ei-desc'),ai=document.getElementById('ei-amt'),dti=document.getElementById('ei-date');
+    if(di)di.value=item.description;
+    if(ai)ai.value=item.amount;
+    if(dti)dti.value=item.date;
+  },50);
 }
 function delExtraIncome(id){
   if(!confirm('Excluir este ganho?'))return;
@@ -1115,8 +1139,28 @@ function addInvestment(){
   if(!desc||!amt){alert('Preencha descrição e valor.');return;}
   const d=getMD(S.selectedMonth);
   if(!d.investments)d.investments=[];
-  d.investments.push({id:uid(),date,description:desc,amount:amt});
+  if(editingInvestmentId){
+    const item=d.investments.find(e=>e.id===editingInvestmentId);
+    if(item){item.description=desc;item.amount=amt;item.date=date;}
+    editingInvestmentId=null;
+  }else{
+    d.investments.push({id:uid(),date,description:desc,amount:amt});
+  }
   investFormOpen=false;save();rBen('invest');
+}
+function editInvestment(id){
+  const d=getMD(S.selectedMonth);
+  const item=(d.investments||[]).find(e=>e.id===id);
+  if(!item)return;
+  editingInvestmentId=id;
+  investFormOpen=true;
+  rBen('invest');
+  setTimeout(()=>{
+    const di=document.getElementById('inv-desc'),ai=document.getElementById('inv-amt'),dti=document.getElementById('inv-date');
+    if(di)di.value=item.description;
+    if(ai)ai.value=item.amount;
+    if(dti)dti.value=item.date;
+  },50);
 }
 function delInvestment(id){
   if(!confirm('Excluir este investimento?'))return;
@@ -1213,14 +1257,14 @@ function rInvest(){
   }).filter(x=>x.val>0);
 
   const form=investFormOpen?`<div class="card">
-    <div style="font-size:14px;font-weight:700;margin-bottom:10px">Novo investimento</div>
+    <div style="font-size:14px;font-weight:700;margin-bottom:10px">${editingInvestmentId?'Editar investimento':'Novo investimento'}</div>
     <div class="ff"><div class="flbl">Descrição</div><input class="finp" id="inv-desc" placeholder="Ex: Poupança, CDB..."/></div>
     <div class="ff"><div class="flbl">Valor (R$)</div><input class="finp" id="inv-amt" type="number" inputmode="decimal" placeholder="Ex: 200,00"/></div>
     <div class="ff"><div class="flbl">Data</div><input class="finp" id="inv-date" type="date" value="${todayISO()}"/></div>
-    <button class="abtn" style="background:var(--income)" onclick="addInvestment()">Salvar investimento</button>
+    <button class="abtn" style="background:var(--income)" onclick="addInvestment()">${editingInvestmentId?'Atualizar investimento':'Salvar investimento'}</button>
   </div>`:'';
 
-  const histHTML=list.length?list.map(e=>`<div class="hitem"><span class="hico">📈</span><span class="hdesc">${e.description}</span><span class="hdate">${fmtDate(e.date)}</span><span class="hamt" style="color:var(--income)">+${fmt(e.amount)}</span><button class="edel" onclick="delInvestment('${e.id}')">🗑</button></div>`).join(''):'<div class="card"><div style="text-align:center;color:var(--muted);font-size:13px;padding:8px">Nenhum investimento este mês.</div></div>';
+  const histHTML=list.length?list.map(e=>`<div class="hitem"><span class="hico">📈</span><span class="hdesc">${e.description}</span><span class="hdate">${fmtDate(e.date)}</span><span class="hamt" style="color:var(--income)">+${fmt(e.amount)}</span><button class="edel" onclick="editInvestment('${e.id}')">✏️</button><button class="edel" onclick="delInvestment('${e.id}')">🗑</button></div>`).join(''):'<div class="card"><div style="text-align:center;color:var(--muted);font-size:13px;padding:8px">Nenhum investimento este mês.</div></div>';
 
   return`
   <div class="card" style="border-color:var(--income)44;background:var(--income)08">
