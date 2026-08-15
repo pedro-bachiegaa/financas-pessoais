@@ -27,7 +27,7 @@ body.light {
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;-webkit-tap-highlight-color:transparent;transition:background .3s,color .3s}
 #app{max-width:430px;margin:0 auto;min-height:100vh;position:relative}
 .page{display:none;flex-direction:column}
-.page.active{display:flex;height:calc(100vh - 68px);overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain}
+.page.active{display:flex;height:calc(100vh - 68px);overflow-y:auto;overscroll-behavior:contain}
 .page.active::-webkit-scrollbar{width:4px}
 .page.active::-webkit-scrollbar-track{background:transparent}
 .page.active::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
@@ -244,7 +244,7 @@ input:checked+.togsl::before{transform:translateX(22px)}
 .calgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin:4px 0}
 .calhead{text-align:center;font-size:10px;font-weight:700;color:var(--muted);padding:3px 0}
 .calhead.we{color:var(--border)}
-.calday{aspect-ratio:1;display:flex;align-items:center;justify-content:center;border-radius:8px;font-size:12px;font-weight:600;border:1.5px solid transparent;transition:all .15s;min-height:34px}
+.calday{height:38px;display:flex;align-items:center;justify-content:center;border-radius:8px;font-size:12px;font-weight:600;border:1.5px solid transparent;transition:all .15s}
 .calday.empty{background:transparent}
 .calday.we{color:var(--border);background:transparent;cursor:default}
 .calday.wd{background:var(--card);color:var(--text);cursor:pointer}
@@ -887,10 +887,10 @@ function rExp(){
   document.getElementById('p-expenses').innerHTML=`
     <div class="ph"><div class="pt">Gastos</div><div style="display:flex;gap:8px"><button class="hbtn" onclick="openImportModal()">📥</button><button class="hbtn" onclick="openExpModal(null)">＋</button></div></div>
     ${mselHTML()}
-    <div class="frow" style="padding:4px 16px 0">
-      <button class="fchip${!pmFilter?' on':''}" style="${!pmFilter?'background:var(--primary);border-color:var(--primary)':''}" onclick="setPMFilter(null)">Todos</button>
-      <button class="fchip${pmFilter==='vr'?' on':''}" style="${pmFilter==='vr'?'background:var(--vr);border-color:var(--vr)':''}" onclick="setPMFilter('vr')">🍽️ VR</button>
-      <button class="fchip${pmFilter==='mp'?' on':''}" style="${pmFilter==='mp'?'background:var(--primary);border-color:var(--primary)':''}" onclick="setPMFilter('mp')">📱 MP / PIX</button>
+    <div style="display:flex;gap:8px;padding:8px 16px;border-bottom:1px solid var(--border)">
+      <button class="fchip${!pmFilter?' on':''}" style="${!pmFilter?'background:var(--primary);border-color:var(--primary);color:#fff':''}; font-size:12px;padding:6px 14px" onclick="setPMFilter(null)">Todos</button>
+      <button class="fchip${pmFilter==='vr'?' on':''}" style="${pmFilter==='vr'?'background:var(--vr);border-color:var(--vr);color:#fff':''}; font-size:12px;padding:6px 14px" onclick="setPMFilter('vr')">🍽️ VR</button>
+      <button class="fchip${pmFilter==='mp'?' on':''}" style="${pmFilter==='mp'?'background:var(--primary);border-color:var(--primary);color:#fff':''}; font-size:12px;padding:6px 14px" onclick="setPMFilter('mp')">📱 MP</button>
     </div>
     <div class="sbar">
       <div class="sbi"><div class="sbil">${pmFilter==='vr'?'VR':pmFilter==='mp'?'MP / PIX':'Gastos'}</div><div class="sbiv" style="color:var(--expense)">${fmt(pmFilter?pmTotal:totalExp)}</div></div>
