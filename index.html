@@ -538,6 +538,7 @@ let currentPage='home', currentTab='vr', currentChart='cats';
 let billsOpen=false, expFilter=null, pmFilter=null, editingExp=null;
 let salEditing=false, vrEditing=false, topRechargeOpen=false, topBalEditing=false;
 let billFormOpen=false, catFormOpen=false, investFormOpen=false, extraIncomeFormOpen=false, editingExtraIncomeId=null, editingInvestmentId=null;
+let invType='investimento';
 let newCatColor='#FF6B5A';
 
 function defMonthData(){
@@ -652,7 +653,7 @@ function calcAvailCarryOver(m){
   if(!S.data[prev])return 0;
   return Math.max(0,calcAvail(prev));
 }
-function calcMonthInvest(m){return(getMD(m).investments||[]).reduce((a,e)=>a+e.amount,0)}
+function calcMonthInvest(m){return(getMD(m).investments||[]).filter(e=>e.type!=='rendimento').reduce((a,e)=>a+e.amount,0)}
 function calcAvail(m){
   const d=getMD(m);
   const net=d.salary?.netReceived!=null?d.salary.netReceived:calcNet(d.salary);
@@ -1402,7 +1403,7 @@ function rVR(){
     <button class="abtn" style="background:var(--vr)" onclick="saveVR()">Salvar</button>
   </div>`:'';
 
-  const histHTML=vrExps.length?vrExps.map(e=>`<div class="hitem"><span class="hico">${icon('utensils')}</span><span class="hdesc">${e.description||'Alimentação'}</span><span class="hdate">${fmtDate(e.date)}</span><span class="hamt" style="color:var(--expense)">-${fmt(e.amount)}</span></div>`).join(''):`<div class="card"><div style="text-align:center;color:var(--muted);font-size:13px;padding:12px">Nenhum gasto VR registrado.</div></div>`;
+  const histHTML=vrExps.length?vrExps.map(e=>`<div class="hitem"><span class="hico">${icon('utensils')}</span><span class="hdesc">${e.description||'Alimentação'}</span><span class="hdate">${fmtDate(e.date)}</span><span class="hamt" style="color:var(--expense)">-${fmt(e.amount)}</span><button class="edel" onclick="openExpModal(${JSON.stringify(e).replace(/"/g,'&quot;')})">${icon('edit')}</button><button class="edel" onclick="delExp('${e.id}')">${icon('trash')}</button></div>`).join(''):`<div class="card"><div style="text-align:center;color:var(--muted);font-size:13px;padding:12px">Nenhum gasto VR registrado.</div></div>`;
   const circ=188.5,dash=Math.min(100,pct)/100*circ;
 
   return`<div class="wcard vr">
@@ -1478,15 +1479,16 @@ function addInvestment(){
   const desc=document.getElementById('inv-desc')?.value?.trim();
   const amt=parseFloat(document.getElementById('inv-amt')?.value||0);
   const date=document.getElementById('inv-date')?.value||todayISO();
+  const type=invType||'investimento';
   if(!desc||!amt){alert('Preencha descrição e valor.');return;}
   const d=getMD(S.selectedMonth);
   if(!d.investments)d.investments=[];
   if(editingInvestmentId){
     const item=d.investments.find(e=>e.id===editingInvestmentId);
-    if(item){item.description=desc;item.amount=amt;item.date=date;}
+    if(item){item.description=desc;item.amount=amt;item.date=date;item.type=type;}
     editingInvestmentId=null;
   }else{
-    d.investments.push({id:uid(),date,description:desc,amount:amt});
+    d.investments.push({id:uid(),date,description:desc,amount:amt,type});
   }
   investFormOpen=false;save();rBen('invest');
 }
@@ -1495,6 +1497,7 @@ function editInvestment(id){
   const item=(d.investments||[]).find(e=>e.id===id);
   if(!item)return;
   editingInvestmentId=id;
+  invType=item.type||'investimento';
   investFormOpen=true;
   rBen('invest');
   setTimeout(()=>{
@@ -1536,7 +1539,7 @@ function rTOP(){
   </div>`:'';
 
   const rechHTML=recharges.length?`<div class="stitle">Recargas</div>`+recharges.map(r=>`<div class="hitem"><span class="hico">${icon('plusCircle')}</span><span class="hdesc">${r.notes||'Recarga TOP'}</span><span class="hdate">${fmtDate(r.date)}</span><span class="hamt" style="color:var(--income)">+${fmt(r.amount)}</span><button class="edel" onclick="delTOPRecharge('${r.id}')">${icon('trash')}</button></div>`).join(''):'';
-  const topExpHTML=topExps.length?topExps.map(e=>`<div class="hitem"><span class="hico">${icon('bus')}</span><span class="hdesc">${e.description||'Transporte'}</span><span class="hdate">${fmtDate(e.date)}</span><span class="hamt" style="color:var(--expense)">-${fmt(e.amount)}</span></div>`).join(''):`<div class="card"><div style="text-align:center;color:var(--muted);font-size:13px;padding:12px">Nenhum gasto TOP.</div></div>`;
+  const topExpHTML=topExps.length?topExps.map(e=>`<div class="hitem"><span class="hico">${icon('bus')}</span><span class="hdesc">${e.description||'Transporte'}</span><span class="hdate">${fmtDate(e.date)}</span><span class="hamt" style="color:var(--expense)">-${fmt(e.amount)}</span><button class="edel" onclick="openExpModal(${JSON.stringify(e).replace(/"/g,'&quot;')})">${icon('edit')}</button><button class="edel" onclick="delExp('${e.id}')">${icon('trash')}</button></div>`).join(''):`<div class="card"><div style="text-align:center;color:var(--muted);font-size:13px;padding:12px">Nenhum gasto TOP.</div></div>`;
   const topAvail=(top?.startBalance||0)+topRec;
   const topPct=topAvail>0?Math.min(100,(topSpent/topAvail)*100):0;
 
@@ -1589,29 +1592,48 @@ function saveCDIRate(){
   const v=parseFloat(document.getElementById('cdi-inp')?.value);
   if(v>0&&v<100){S.cdiRate=v;save();rBen('invest');}
 }
+function setInvType(t){
+  invType=t;
+  ['investimento','rendimento'].forEach(v=>{
+    const b=document.getElementById('btn-type-'+v);
+    if(!b)return;
+    const on=t===v;
+    const color=v==='investimento'?'var(--primary)':'var(--income)';
+    b.className='paybtn'+(on?' on':'');
+    b.style.cssText='flex:1'+(on?`;background:${color};border-color:${color};color:#04101f`:'');
+  });
+  const hint=document.getElementById('inv-type-hint');
+  if(hint)hint.textContent=t==='rendimento'?'Rendimentos não são descontados do saldo disponível.':'Investimentos são descontados do saldo disponível.';
+}
 function rInvest(){
   const m=S.selectedMonth,d=getMD(m);
   const list=d.investments||[];
-  const thisMo=list.reduce((a,e)=>a+e.amount,0);
   const {earnings,principal}=calcCDIEarnings();
   const cdi=S.cdiRate||10.75;
+  const totalRendimentos=list.filter(e=>e.type==='rendimento').reduce((a,e)=>a+e.amount,0);
 
   // total investido em todos os meses
   const allMonths=Object.keys(S.data||{}).sort();
   const moHist=allMonths.map(mo=>{
-    const mv=(getMD(mo).investments||[]).reduce((a,e)=>a+e.amount,0);
+    const mv=(getMD(mo).investments||[]).filter(e=>e.type!=='rendimento').reduce((a,e)=>a+e.amount,0);
     return{label:mkLabel(mo,true),val:mv};
   }).filter(x=>x.val>0);
 
   const form=investFormOpen?`<div class="card">
-    <div style="font-size:14px;font-weight:700;margin-bottom:10px">${editingInvestmentId?'Editar investimento':'Novo investimento'}</div>
-    <div class="ff"><div class="flbl">Descrição</div><input class="finp" id="inv-desc" placeholder="Ex: Poupança, CDB..."/></div>
+    <div style="font-size:14px;font-weight:700;margin-bottom:10px">${editingInvestmentId?'Editar':'Novo lançamento'}</div>
+    <div class="ff"><div class="flbl">Tipo</div><div style="display:flex;gap:8px;margin-top:4px">
+      <button id="btn-type-investimento" class="paybtn${invType==='investimento'?' on':''}" style="flex:1${invType==='investimento'?';background:var(--primary);border-color:var(--primary);color:#04101f':''}" onclick="setInvType('investimento')">${icon('trendUp')} Investimento</button>
+      <button id="btn-type-rendimento" class="paybtn${invType==='rendimento'?' on':''}" style="flex:1${invType==='rendimento'?';background:var(--income);border-color:var(--income);color:#04101f':''}" onclick="setInvType('rendimento')">${icon('sparkle')} Rendimento</button>
+    </div>
+    <div id="inv-type-hint" style="font-size:11px;color:var(--muted);margin-top:6px">${invType==='rendimento'?'Rendimentos não são descontados do saldo disponível.':'Investimentos são descontados do saldo disponível.'}</div>
+    </div>
+    <div class="ff"><div class="flbl">Descrição</div><input class="finp" id="inv-desc" placeholder="${invType==='rendimento'?'Ex: Rendimento CDB, Dividendos...':'Ex: Poupança, CDB...'}"/></div>
     <div class="ff"><div class="flbl">Valor (R$)</div><input class="finp" id="inv-amt" type="number" inputmode="decimal" placeholder="Ex: 200,00"/></div>
     <div class="ff"><div class="flbl">Data</div><input class="finp" id="inv-date" type="date" value="${todayISO()}"/></div>
-    <button class="abtn" style="background:var(--income)" onclick="addInvestment()">${editingInvestmentId?'Atualizar investimento':'Salvar investimento'}</button>
+    <button class="abtn" style="background:var(--income)" onclick="addInvestment()">${editingInvestmentId?'Atualizar':'Salvar'}</button>
   </div>`:'';
 
-  const histHTML=list.length?list.map(e=>`<div class="hitem"><span class="hico">${icon('trendUp')}</span><span class="hdesc">${e.description}</span><span class="hdate">${fmtDate(e.date)}</span><span class="hamt" style="color:var(--income)">+${fmt(e.amount)}</span><button class="edel" onclick="editInvestment('${e.id}')">${icon('edit')}</button><button class="edel" onclick="delInvestment('${e.id}')">${icon('trash')}</button></div>`).join(''):'<div class="card"><div style="text-align:center;color:var(--muted);font-size:13px;padding:8px">Nenhum investimento este mês.</div></div>';
+  const histHTML=list.length?list.map(e=>{const isRend=e.type==='rendimento';return`<div class="hitem"><span class="hico" style="background:${isRend?'var(--income)':'var(--primary)'}22;color:${isRend?'var(--income)':'var(--primary)'}">${icon(isRend?'sparkle':'trendUp')}</span><span class="hdesc" style="flex:1;min-width:0"><div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${e.description}</div><div style="font-size:9.5px;color:${isRend?'var(--income)':'var(--primary)'};font-weight:700;margin-top:2px">${isRend?'RENDIMENTO':'INVESTIMENTO'}</div></span><span class="hdate">${fmtDate(e.date)}</span><span class="hamt" style="color:var(--income)">+${fmt(e.amount)}</span><button class="edel" onclick="editInvestment('${e.id}')">${icon('edit')}</button><button class="edel" onclick="delInvestment('${e.id}')">${icon('trash')}</button></div>`;}).join(''):'<div class="card"><div style="text-align:center;color:var(--muted);font-size:13px;padding:8px">Nenhum lançamento este mês.</div></div>';
 
   return`
   <div class="card" style="border-color:var(--income)44;background:var(--income)08">
@@ -1622,7 +1644,8 @@ function rInvest(){
         <div style="font-size:26px;font-weight:800;color:var(--income)">${fmt(principal)}</div>
       </div>
     </div>
-    <div class="sr"><span class="sl">Rendimento estimado</span><span class="sv" style="color:var(--income)">+${fmt(earnings)}</span></div>
+    <div class="sr"><span class="sl">Rendimento estimado (CDI)</span><span class="sv" style="color:var(--income)">+${fmt(earnings)}</span></div>
+    ${totalRendimentos>0?`<div class="sr"><span class="sl">Rendimentos registrados</span><span class="sv" style="color:var(--income)">+${fmt(totalRendimentos)}</span></div>`:''}
     <div class="sr"><span class="sl">Total com rendimento</span><span class="sv" style="color:var(--income);font-weight:800">${fmt(principal+earnings)}</span></div>
     <div class="div"></div>
     <div class="sr" style="align-items:center">
@@ -1638,7 +1661,7 @@ function rInvest(){
   </div>
   <div style="display:flex;justify-content:space-between;align-items:center">
     <div style="font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted)">Este mês</div>
-    <button class="sall" onclick="investFormOpen=!investFormOpen;rBen('invest')">+ Adicionar</button>
+    <button class="sall" onclick="if(!investFormOpen){invType='investimento';editingInvestmentId=null;}investFormOpen=!investFormOpen;rBen('invest')">+ Adicionar</button>
   </div>
   ${form}
   ${histHTML}`;
