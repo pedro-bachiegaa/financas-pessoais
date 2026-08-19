@@ -315,6 +315,7 @@ input:checked+.togsl::before{transform:translateX(22px)}
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body class="dark">
 <div id="login-overlay">
@@ -1089,18 +1090,31 @@ function doImportJSON(){
 // GMAIL IMPORT (Mercado Pago — Pix e débito)
 // ═══════════════════════════════════════════════════════════════════
 let gmailPending=[];
+const GMAIL_DEFAULT_DAYS=2;
 function openGmailModal(){
   document.getElementById('gmail-modal').style.display='flex';
   document.getElementById('gmail-content').innerHTML=`
     <div style="text-align:center;padding:20px 0">
-      <button class="abtn" style="background:var(--grad);color:#04101f" onclick="runGmailSearch()">${icon('mail')} Buscar pagamentos recentes</button>
+      ${_gmailAccountEmail?`<div style="font-size:11px;color:var(--muted);margin-bottom:12px">Última busca: <b style="color:var(--text)">${_gmailAccountEmail}</b></div>`:''}
+      <button class="abtn" style="background:var(--grad);color:#04101f" onclick="runGmailSearch(false,${GMAIL_DEFAULT_DAYS})">${icon('mail')} Buscar hoje e ontem</button>
       <div style="font-size:11px;color:var(--muted);margin-top:10px">Vai pedir permissão de leitura do Gmail (só e-mails, nada mais é lido).</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:18px;margin-bottom:8px">Buscar período maior</div>
+      <div style="display:flex;gap:6px;justify-content:center">
+        ${[10,15,20,30].map(d=>`<button class="fchip" onclick="runGmailSearch(false,${d})">${d}d</button>`).join('')}
+      </div>
+      <button class="sall" style="margin-top:14px;display:block;width:100%;text-align:center" onclick="runGmailSearch(true,${GMAIL_DEFAULT_DAYS})">Usar outra conta Google</button>
     </div>`;
 }
 function closeGmailModal(){document.getElementById('gmail-modal').style.display='none'}
-function gmailStatus(msg){
+function gmailStatus(msg,opts){
+  opts=opts||{};
   const el=document.getElementById('gmail-content');
-  if(el)el.innerHTML=`<div style="text-align:center;padding:30px 0;color:var(--muted);font-size:13px">${msg}</div>`;
+  if(el)el.innerHTML=`<div style="text-align:center;padding:30px 0;color:var(--muted);font-size:13px">
+    ${_gmailAccountEmail?`<div style="font-size:11px;color:var(--muted);margin-bottom:10px">Conta: <b style="color:var(--text)">${_gmailAccountEmail}</b></div>`:''}
+    ${msg}
+    ${opts.showBroaden?`<div style="margin-top:14px"><div style="font-size:11px;color:var(--muted);margin-bottom:8px">Tentar período maior</div><div style="display:flex;gap:6px;justify-content:center">${[10,15,20,30].map(d=>`<button class="fchip" onclick="runGmailSearch(false,${d})">${d}d</button>`).join('')}</div></div>`:''}
+    ${opts.showSwitch?`<div style="margin-top:12px"><button class="sall" onclick="runGmailSearch(true,${GMAIL_DEFAULT_DAYS})">Usar outra conta Google</button></div>`:''}
+  </div>`;
 }
 function b64urlDecode(s){
   s=s.replace(/-/g,'+').replace(/_/g,'/');
@@ -1159,19 +1173,31 @@ function parseMPEmail(subject,bodyText){
     paymentMethod:isPix?'pix':'debit',
   };
 }
-let _gmailToken=null,_gmailTokenExpiry=0;
-async function getGmailAccessToken(forceReauth){
-  if(!forceReauth&&_gmailToken&&Date.now()<_gmailTokenExpiry)return _gmailToken;
-  const provider=new firebase.auth.GoogleAuthProvider();
-  provider.addScope('https://www.googleapis.com/auth/gmail.readonly');
-  if(_user?.email)provider.setCustomParameters({login_hint:_user.email});
-  const result=await _auth.signInWithPopup(provider);
-  const token=result.credential?.accessToken
-    ||firebase.auth.GoogleAuthProvider.credentialFromResult(result)?.accessToken;
-  if(!token)throw new Error('Não foi possível obter permissão do Gmail. Tente novamente e conceda o acesso ao Gmail na tela do Google.');
-  _gmailToken=token;
-  _gmailTokenExpiry=Date.now()+50*60*1000;
-  return token;
+const GOOGLE_OAUTH_CLIENT_ID='326696895408-0svjv0omd2tdvric8lgnqrigi4jr4jai.apps.googleusercontent.com';
+let _gmailToken=null,_gmailTokenExpiry=0,_gmailTokenClient=null,_gmailAccountEmail=null;
+function getGmailAccessToken(switchAccount){
+  return new Promise((resolve,reject)=>{
+    if(!switchAccount&&_gmailToken&&Date.now()<_gmailTokenExpiry){resolve(_gmailToken);return;}
+    if(typeof google==='undefined'||!google.accounts?.oauth2){reject(new Error('Google Identity Services ainda não carregou. Aguarde um instante e tente de novo.'));return;}
+    if(!_gmailTokenClient){
+      _gmailTokenClient=google.accounts.oauth2.initTokenClient({
+        client_id:GOOGLE_OAUTH_CLIENT_ID,
+        scope:'https://www.googleapis.com/auth/gmail.readonly',
+        callback:()=>{},
+      });
+    }
+    _gmailTokenClient.callback=(resp)=>{
+      if(resp.error){reject(new Error(resp.error_description||resp.error));return;}
+      _gmailToken=resp.access_token;
+      _gmailTokenExpiry=Date.now()+((resp.expires_in||3300)*1000-60000);
+      resolve(_gmailToken);
+    };
+    _gmailTokenClient.error_callback=(err)=>{reject(new Error(err?.message||'Permissão do Gmail cancelada.'))};
+    const opts={};
+    if(switchAccount)opts.prompt='select_account';
+    else if(_gmailAccountEmail||_user?.email)opts.hint=_gmailAccountEmail||_user.email;
+    _gmailTokenClient.requestAccessToken(opts);
+  });
 }
 function findPossibleDuplicate(dateStr,amount){
   const d=getMD(dateStr.slice(0,7));
@@ -1182,11 +1208,16 @@ function findPossibleDuplicate(dateStr,amount){
     return diffDays<=1;
   })||null;
 }
-async function runGmailSearch(){
+async function runGmailSearch(switchAccount,days){
+  days=days||GMAIL_DEFAULT_DAYS;
   gmailStatus(`${icon('loader')} Pedindo permissão e buscando e-mails...`);
   try{
-    const token=await getGmailAccessToken();
-    const q='from:mercadopago.com.br (subject:"Pix foi enviado" OR subject:"Pix enviado" OR subject:"compra aprovada" OR subject:"Você fez uma compra") newer_than:30d';
+    const token=await getGmailAccessToken(switchAccount);
+    try{
+      const profRes=await fetch('https://gmail.googleapis.com/gmail/v1/users/me/profile',{headers:{Authorization:`Bearer ${token}`}});
+      if(profRes.ok)_gmailAccountEmail=(await profRes.json()).emailAddress||_gmailAccountEmail;
+    }catch(e){}
+    const q=`from:mercadopago.com.br (subject:"Pix foi enviado" OR subject:"Pix enviado" OR subject:"compra aprovada" OR subject:"Você fez uma compra") newer_than:${days}d`;
     const listRes=await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(q)}&maxResults=25`,{headers:{Authorization:`Bearer ${token}`}});
     if(!listRes.ok){
       if(listRes.status===401){_gmailToken=null;throw new Error('Permissão expirou, toque em "Buscar" de novo.');}
@@ -1196,7 +1227,7 @@ async function runGmailSearch(){
     }
     const listData=await listRes.json();
     const msgs=(listData.messages||[]).filter(m=>!(S.importedEmailIds||[]).includes(m.id));
-    if(!msgs.length){gmailStatus('Nenhum pagamento novo encontrado nos últimos 30 dias.');return;}
+    if(!msgs.length){gmailStatus(`Nenhum pagamento novo encontrado ${days<=2?'em hoje/ontem':`nos últimos ${days} dias`}.`,{showSwitch:true,showBroaden:days<30});return;}
     gmailStatus(`${icon('loader')} Lendo ${msgs.length} e-mail(s)...`);
     const results=[];
     for(const m of msgs){
@@ -1223,17 +1254,21 @@ async function runGmailSearch(){
         dup:dup?{description:dup.description||getCat(dup.category).name,date:dup.date}:null,
       });
     }
-    if(!results.length){gmailStatus('Nenhum e-mail reconhecido como pagamento. O formato pode ter mudado.');return;}
+    if(!results.length){gmailStatus('Nenhum e-mail reconhecido como pagamento. O formato pode ter mudado.',{showSwitch:true,showBroaden:days<30});return;}
     gmailPending=results;
     renderGmailReview();
   }catch(e){
-    gmailStatus(`Não deu pra buscar: ${e.message}<br><span style="font-size:11px">Confira se a Gmail API está habilitada e seu e-mail está liberado no consentimento OAuth do projeto.</span>`);
+    gmailStatus(`Não deu pra buscar: ${e.message}<br><span style="font-size:11px">Confira se a Gmail API está habilitada e seu e-mail está liberado no consentimento OAuth do projeto.</span>`,{showSwitch:true});
   }
 }
 function renderGmailReview(){
   const cats=allCats();
   const dupCount=gmailPending.filter(i=>i.dup).length;
   document.getElementById('gmail-content').innerHTML=`
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:2px">
+      ${_gmailAccountEmail?`<div style="font-size:11px;color:var(--muted)">Conta: <b style="color:var(--text)">${_gmailAccountEmail}</b></div>`:'<div></div>'}
+      <button class="sall" style="font-size:11px" onclick="runGmailSearch(true)">Trocar conta</button>
+    </div>
     <div style="font-size:12px;color:var(--muted);margin-bottom:10px">${gmailPending.length} encontrado(s)${dupCount?`, ${dupCount} parecendo já lançado(s)`:''}. Confira e ajuste a categoria antes de adicionar.</div>
     <div style="display:flex;flex-direction:column;gap:8px;max-height:50vh;overflow-y:auto">
       ${gmailPending.map((it,i)=>`
