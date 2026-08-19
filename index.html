@@ -1167,6 +1167,15 @@ async function getGmailAccessToken(){
   if(!cred?.accessToken)throw new Error('Não foi possível obter permissão do Gmail.');
   return cred.accessToken;
 }
+function findPossibleDuplicate(dateStr,amount){
+  const d=getMD(dateStr.slice(0,7));
+  const target=new Date(dateStr+'T00:00:00').getTime();
+  return(d.expenses||[]).find(e=>{
+    if(Math.abs(e.amount-amount)>0.009)return false;
+    const diffDays=Math.abs(new Date(e.date+'T00:00:00').getTime()-target)/86400000;
+    return diffDays<=1;
+  })||null;
+}
 async function runGmailSearch(){
   gmailStatus(`${icon('loader')} Pedindo permissão e buscando e-mails...`);
   try{
@@ -1190,14 +1199,17 @@ async function runGmailSearch(){
       const parsed=parseMPEmail(subject,text);
       if(!parsed)continue;
       const ts=Number(msg.internalDate||Date.now());
+      const date=new Date(ts).toISOString().slice(0,10);
+      const dup=findPossibleDuplicate(date,parsed.amount);
       results.push({
         emailId:m.id,
-        date:new Date(ts).toISOString().slice(0,10),
+        date,
         amount:parsed.amount,
         description:parsed.description,
         paymentMethod:parsed.paymentMethod,
         category:'other',
-        selected:true,
+        selected:!dup,
+        dup:dup?{description:dup.description||getCat(dup.category).name,date:dup.date}:null,
       });
     }
     if(!results.length){gmailStatus('Nenhum e-mail reconhecido como pagamento. O formato pode ter mudado.');return;}
@@ -1209,8 +1221,9 @@ async function runGmailSearch(){
 }
 function renderGmailReview(){
   const cats=allCats();
+  const dupCount=gmailPending.filter(i=>i.dup).length;
   document.getElementById('gmail-content').innerHTML=`
-    <div style="font-size:12px;color:var(--muted);margin-bottom:10px">${gmailPending.length} encontrado(s). Confira e ajuste a categoria antes de adicionar.</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:10px">${gmailPending.length} encontrado(s)${dupCount?`, ${dupCount} parecendo já lançado(s)`:''}. Confira e ajuste a categoria antes de adicionar.</div>
     <div style="display:flex;flex-direction:column;gap:8px;max-height:50vh;overflow-y:auto">
       ${gmailPending.map((it,i)=>`
         <div class="icard" style="align-items:flex-start;flex-direction:column;gap:8px">
@@ -1222,6 +1235,7 @@ function renderGmailReview(){
             </div>
             <div style="font-size:14px;font-weight:800;color:var(--text)">${fmt(it.amount)}</div>
           </div>
+          ${it.dup?`<div style="display:flex;align-items:flex-start;gap:6px;font-size:11px;color:var(--warning);padding-left:30px;line-height:1.4">${icon('alertTriangle')} Parece igual a "${it.dup.description}" (${fmtDate(it.dup.date)}). Já marcado como possível duplicata — confira e adicione mesmo assim se quiser.</div>`:''}
           <div class="catgrid" style="padding-left:30px">${cats.map(c=>`<button class="catbtn${it.category===c.id?' on':''}" style="${it.category===c.id?`background:${c.c};border-color:${c.c}`:''};padding:5px 10px;font-size:11px" onclick="gmailPending[${i}].category='${c.id}';renderGmailReview()">${icon(c.e)} ${c.name}</button>`).join('')}</div>
         </div>`).join('')}
     </div>
