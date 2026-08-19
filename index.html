@@ -482,8 +482,8 @@ let _user=null;
 let _syncTimer=null;
 
 function signInWithGoogle(){
-  _auth.signInWithRedirect(new firebase.auth.GoogleAuthProvider())
-    .catch(e=>alert('Erro ao entrar: '+e.message));
+  _auth.signInWithPopup(new firebase.auth.GoogleAuthProvider())
+    .catch(e=>{if(e.code!=='auth/popup-closed-by-user'&&e.code!=='auth/cancelled-popup-request')alert('Erro ao entrar: '+e.message);});
 }
 function fbSignOut(){
   if(!confirm('Sair da conta?\nSeus dados continuam salvos na nuvem.'))return;
