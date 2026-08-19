@@ -1476,11 +1476,11 @@ function delExtraIncome(id){
   save();rHome();
 }
 function addInvestment(){
-  const desc=document.getElementById('inv-desc')?.value?.trim();
+  const type=invType||'investimento';
+  const desc=type==='rendimento'?'Rendimento':(document.getElementById('inv-desc')?.value?.trim()||'');
   const amt=parseFloat(document.getElementById('inv-amt')?.value||0);
   const date=document.getElementById('inv-date')?.value||todayISO();
-  const type=invType||'investimento';
-  if(!desc||!amt){alert('Preencha descrição e valor.');return;}
+  if((type!=='rendimento'&&!desc)||!amt){alert('Preencha '+(type==='rendimento'?'o valor':'descrição e valor')+'.');return;}
   const d=getMD(S.selectedMonth);
   if(!d.investments)d.investments=[];
   if(editingInvestmentId){
@@ -1604,6 +1604,8 @@ function setInvType(t){
   });
   const hint=document.getElementById('inv-type-hint');
   if(hint)hint.textContent=t==='rendimento'?'Rendimentos não são descontados do saldo disponível.':'Investimentos são descontados do saldo disponível.';
+  const descField=document.getElementById('inv-desc-field');
+  if(descField)descField.style.display=t==='rendimento'?'none':'';
 }
 function rInvest(){
   const m=S.selectedMonth,d=getMD(m);
@@ -1627,13 +1629,13 @@ function rInvest(){
     </div>
     <div id="inv-type-hint" style="font-size:11px;color:var(--muted);margin-top:6px">${invType==='rendimento'?'Rendimentos não são descontados do saldo disponível.':'Investimentos são descontados do saldo disponível.'}</div>
     </div>
-    <div class="ff"><div class="flbl">Descrição</div><input class="finp" id="inv-desc" placeholder="${invType==='rendimento'?'Ex: Rendimento CDB, Dividendos...':'Ex: Poupança, CDB...'}"/></div>
+    <div id="inv-desc-field" class="ff" style="${invType==='rendimento'?'display:none':''}"><div class="flbl">Descrição</div><input class="finp" id="inv-desc" placeholder="Ex: Poupança, CDB..."/></div>
     <div class="ff"><div class="flbl">Valor (R$)</div><input class="finp" id="inv-amt" type="number" inputmode="decimal" placeholder="Ex: 200,00"/></div>
     <div class="ff"><div class="flbl">Data</div><input class="finp" id="inv-date" type="date" value="${todayISO()}"/></div>
     <button class="abtn" style="background:var(--income)" onclick="addInvestment()">${editingInvestmentId?'Atualizar':'Salvar'}</button>
   </div>`:'';
 
-  const histHTML=list.length?list.map(e=>{const isRend=e.type==='rendimento';return`<div class="hitem"><span class="hico" style="background:${isRend?'var(--income)':'var(--primary)'}22;color:${isRend?'var(--income)':'var(--primary)'}">${icon(isRend?'sparkle':'trendUp')}</span><span class="hdesc" style="flex:1;min-width:0"><div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${e.description}</div><div style="font-size:9.5px;color:${isRend?'var(--income)':'var(--primary)'};font-weight:700;margin-top:2px">${isRend?'RENDIMENTO':'INVESTIMENTO'}</div></span><span class="hdate">${fmtDate(e.date)}</span><span class="hamt" style="color:var(--income)">+${fmt(e.amount)}</span><button class="edel" onclick="editInvestment('${e.id}')">${icon('edit')}</button><button class="edel" onclick="delInvestment('${e.id}')">${icon('trash')}</button></div>`;}).join(''):'<div class="card"><div style="text-align:center;color:var(--muted);font-size:13px;padding:8px">Nenhum lançamento este mês.</div></div>';
+  const histHTML=list.length?list.map(e=>{const isRend=e.type==='rendimento';return`<div class="hitem"><span class="hico" style="background:${isRend?'var(--income)':'var(--primary)'}22;color:${isRend?'var(--income)':'var(--primary)'}">${icon(isRend?'sparkle':'trendUp')}</span><span class="hdesc" style="flex:1;min-width:0"><div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${isRend?'Rendimento':e.description}</div><div style="font-size:9.5px;color:${isRend?'var(--income)':'var(--primary)'};font-weight:700;margin-top:2px">${isRend?'RENDIMENTO':'INVESTIMENTO'}</div></span><span class="hdate">${fmtDate(e.date)}</span><span class="hamt" style="color:var(--income)">+${fmt(e.amount)}</span><button class="edel" onclick="editInvestment('${e.id}')">${icon('edit')}</button><button class="edel" onclick="delInvestment('${e.id}')">${icon('trash')}</button></div>`;}).join(''):'<div class="card"><div style="text-align:center;color:var(--muted);font-size:13px;padding:8px">Nenhum lançamento este mês.</div></div>';
 
   return`
   <div class="card" style="border-color:var(--income)44;background:var(--income)08">
