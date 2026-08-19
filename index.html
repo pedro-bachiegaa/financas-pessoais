@@ -1183,7 +1183,11 @@ async function runGmailSearch(){
     const token=await getGmailAccessToken();
     const q='from:mercadopago.com.br (subject:"Pix foi enviado" OR subject:"Pix enviado" OR subject:"compra aprovada" OR subject:"Você fez uma compra") newer_than:30d';
     const listRes=await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(q)}&maxResults=25`,{headers:{Authorization:`Bearer ${token}`}});
-    if(!listRes.ok)throw new Error('Gmail API: '+listRes.status);
+    if(!listRes.ok){
+      let detail='';
+      try{const err=await listRes.json();detail=err?.error?.message||'';}catch(e){}
+      throw new Error(`Gmail API ${listRes.status}${detail?': '+detail:''}`);
+    }
     const listData=await listRes.json();
     const msgs=(listData.messages||[]).filter(m=>!(S.importedEmailIds||[]).includes(m.id));
     if(!msgs.length){gmailStatus('Nenhum pagamento novo encontrado nos últimos 30 dias.');return;}
