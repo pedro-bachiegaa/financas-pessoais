@@ -6,6 +6,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#020817">
 <title>Nexo</title>
+<link rel="icon" type="image/jpeg" href="logo.jpg">
+<link rel="apple-touch-icon" href="logo.jpg">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap">
 <style>
 :root {
@@ -303,7 +305,7 @@ input:checked+.togsl::before{transform:translateX(22px)}
 /* LOGIN OVERLAY */
 #login-overlay{position:fixed;inset:0;background:var(--bg);background-image:radial-gradient(circle at 20% 10%,rgba(20,92,255,.22),transparent 45%),radial-gradient(circle at 90% 80%,rgba(32,232,120,.14),transparent 45%);display:flex;align-items:center;justify-content:center;z-index:9999;padding:24px}
 #login-card{background:var(--card);border:1px solid var(--border);border-radius:28px;padding:36px 24px;text-align:center;max-width:360px;width:100%}
-.login-logo{width:64px;height:64px;border-radius:18px;margin:0 auto 20px;display:flex;align-items:center;justify-content:center;background:var(--grad);font-size:30px;color:#04101f}
+.login-logo{width:80px;height:80px;border-radius:22px;margin:0 auto 20px;display:flex;align-items:center;justify-content:center;overflow:hidden}
 .login-title{font-size:24px;font-weight:800;color:var(--text);margin-bottom:8px;letter-spacing:-.5px}
 .login-sub{font-size:14px;color:var(--muted);margin-bottom:28px;line-height:1.5}
 #login-btn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:14px 20px;border-radius:16px;border:1.5px solid var(--border);background:var(--surface);color:var(--text);font-size:15px;font-weight:700;cursor:pointer;transition:all .2s}
@@ -320,7 +322,7 @@ input:checked+.togsl::before{transform:translateX(22px)}
 <body class="dark">
 <div id="login-overlay">
   <div id="login-card">
-    <div class="login-logo"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h13a1 1 0 0 1 1 1v3"/><path d="M3 7v10a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1H5a2 2 0 0 1-2-2Z"/><circle cx="17" cy="13" r="1.4"/></svg></div>
+    <div class="login-logo"><img src="logo.jpg" alt="Nexo" style="width:100%;height:100%;object-fit:cover"></div>
     <div class="login-title">Nexo</div>
     <div class="login-sub">Seu dinheiro conectado. Entre com sua conta Google para salvar seus dados na nuvem com segurança</div>
     <button id="login-btn" onclick="signInWithGoogle()">
@@ -887,7 +889,7 @@ function rHome(){
   document.getElementById('p-home').innerHTML=`
     <div class="ph">
       <div style="display:flex;align-items:center;gap:9px">
-        <div style="width:26px;height:26px;border-radius:8px;background:var(--grad);display:flex;align-items:center;justify-content:center;color:#04101f;flex-shrink:0">${icon('home')}</div>
+        <img src="logo.jpg" alt="Nexo" style="width:32px;height:32px;border-radius:9px;object-fit:cover;flex-shrink:0">
         <div><div class="pt" style="font-size:15px;letter-spacing:2.5px">NEXO</div><div style="font-size:11px;color:var(--muted);font-weight:500">Suas finanças em ${mkLabel(S.selectedMonth)}</div></div>
       </div>
       <button class="hbtn" onclick="goto('settings')">${icon('settings')}</button>
