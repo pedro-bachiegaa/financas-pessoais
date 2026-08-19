@@ -1163,9 +1163,10 @@ async function getGmailAccessToken(){
   const provider=new firebase.auth.GoogleAuthProvider();
   provider.addScope('https://www.googleapis.com/auth/gmail.readonly');
   const result=await _auth.signInWithPopup(provider);
-  const cred=firebase.auth.GoogleAuthProvider.credentialFromResult(result);
-  if(!cred?.accessToken)throw new Error('Não foi possível obter permissão do Gmail.');
-  return cred.accessToken;
+  const token=result.credential?.accessToken
+    ||firebase.auth.GoogleAuthProvider.credentialFromResult(result)?.accessToken;
+  if(!token)throw new Error('Não foi possível obter permissão do Gmail. Tente novamente e conceda o acesso ao Gmail na tela do Google.');
+  return token;
 }
 function findPossibleDuplicate(dateStr,amount){
   const d=getMD(dateStr.slice(0,7));
