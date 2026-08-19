@@ -844,7 +844,7 @@ function rHome(){
   const dailyLim=calcDailyLim(m);
   const carryOver=calcAvailCarryOver(m);
   const extraInc=calcExtraIncome(m);
-  const extraList=d.extraIncome||[];
+  const extraList=[...(d.extraIncome||[])].sort((a,b)=>b.date.localeCompare(a.date));
   const vrSpent=expenses.filter(e=>e.paymentMethod==='vr').reduce((a,e)=>a+e.amount,0);
   const topSpent=expenses.filter(e=>e.paymentMethod==='top').reduce((a,e)=>a+e.amount,0);
   const topRec=(top?.recharges||[]).reduce((a,r)=>a+r.amount,0);
@@ -853,7 +853,7 @@ function rHome(){
   const topDayAvg=new Date().getDate()>0?topSpent/new Date().getDate():0;
   const topDaysEst=topDayAvg>0?Math.floor(topBal/topDayAvg):0;
   const topCats=groupByCat(m).slice(0,3);
-  const recent=expenses.slice(0,5);
+  const recent=[...expenses].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5);
   const pct=vr?.received>0?Math.min(100,(vrSpent/vr.received)*100):0;
   const pctColor=pct>=90?'var(--expense)':pct>=75?'var(--warning)':'var(--vr)';
   const commitColor=commit>=80?'var(--expense)':commit>=60?'var(--warning)':'var(--income)';
@@ -1394,7 +1394,7 @@ function rVR(){
   const vrDailyRec=calcVRDailyRec(m);
   const pct=vr?.received>0?Math.min(100,(vrSpent/vr.received)*100):0;
   const pctColor=pct>=90?'var(--expense)':pct>=75?'var(--warning)':'var(--vr)';
-  const vrExps=expenses.filter(e=>e.paymentMethod==='vr');
+  const vrExps=expenses.filter(e=>e.paymentMethod==='vr').sort((a,b)=>b.date.localeCompare(a.date));
 
   const form=vrEditing?`<div class="card">
     <div style="font-size:15px;font-weight:700;margin-bottom:12px">Configurar VR</div>
@@ -1521,8 +1521,8 @@ function rTOP(){
   const topRec=(top?.recharges||[]).reduce((a,r)=>a+r.amount,0);
   const dayAvg=new Date().getDate()>0?topSpent/new Date().getDate():0;
   const daysEst=dayAvg>0?Math.floor(topBal/dayAvg):0;
-  const recharges=top?.recharges||[];
-  const topExps=expenses.filter(e=>e.paymentMethod==='top');
+  const recharges=[...(top?.recharges||[])].sort((a,b)=>b.date.localeCompare(a.date));
+  const topExps=expenses.filter(e=>e.paymentMethod==='top').sort((a,b)=>b.date.localeCompare(a.date));
 
   const balForm=topBalEditing?`<div class="card">
     <div style="font-size:15px;font-weight:700;margin-bottom:12px">Saldo inicial do mês</div>
@@ -1609,7 +1609,7 @@ function setInvType(t){
 }
 function rInvest(){
   const m=S.selectedMonth,d=getMD(m);
-  const list=d.investments||[];
+  const list=[...(d.investments||[])].sort((a,b)=>b.date.localeCompare(a.date));
   const {earnings,principal}=calcCDIEarnings();
   const cdi=S.cdiRate||10.75;
   const totalRendimentos=list.filter(e=>e.type==='rendimento').reduce((a,e)=>a+e.amount,0);
