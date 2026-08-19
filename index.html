@@ -1159,13 +1159,18 @@ function parseMPEmail(subject,bodyText){
     paymentMethod:isPix?'pix':'debit',
   };
 }
-async function getGmailAccessToken(){
+let _gmailToken=null,_gmailTokenExpiry=0;
+async function getGmailAccessToken(forceReauth){
+  if(!forceReauth&&_gmailToken&&Date.now()<_gmailTokenExpiry)return _gmailToken;
   const provider=new firebase.auth.GoogleAuthProvider();
   provider.addScope('https://www.googleapis.com/auth/gmail.readonly');
+  if(_user?.email)provider.setCustomParameters({login_hint:_user.email});
   const result=await _auth.signInWithPopup(provider);
   const token=result.credential?.accessToken
     ||firebase.auth.GoogleAuthProvider.credentialFromResult(result)?.accessToken;
   if(!token)throw new Error('Não foi possível obter permissão do Gmail. Tente novamente e conceda o acesso ao Gmail na tela do Google.');
+  _gmailToken=token;
+  _gmailTokenExpiry=Date.now()+50*60*1000;
   return token;
 }
 function findPossibleDuplicate(dateStr,amount){
@@ -1184,6 +1189,7 @@ async function runGmailSearch(){
     const q='from:mercadopago.com.br (subject:"Pix foi enviado" OR subject:"Pix enviado" OR subject:"compra aprovada" OR subject:"Você fez uma compra") newer_than:30d';
     const listRes=await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(q)}&maxResults=25`,{headers:{Authorization:`Bearer ${token}`}});
     if(!listRes.ok){
+      if(listRes.status===401){_gmailToken=null;throw new Error('Permissão expirou, toque em "Buscar" de novo.');}
       let detail='';
       try{const err=await listRes.json();detail=err?.error?.message||'';}catch(e){}
       throw new Error(`Gmail API ${listRes.status}${detail?': '+detail:''}`);
