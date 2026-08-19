@@ -341,6 +341,16 @@ input:checked+.togsl::before{transform:translateX(22px)}
     </div>
   </div>
 </div>
+<div id="gmail-modal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(2,8,23,.75);align-items:center;justify-content:center;padding:20px">
+  <div style="background:var(--card);border:1px solid var(--border);border-radius:20px;padding:20px;width:100%;max-width:480px;max-height:85vh;overflow-y:auto">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+      <div style="font-size:16px;font-weight:800;color:var(--text);display:flex;align-items:center;gap:8px"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6.5A2 2 0 0 1 5 4.5h14a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-11Z"/><path d="M3.5 6l8.5 6.5L20.5 6"/></svg> Importar do Gmail</div>
+      <button class="delbtn" onclick="closeGmailModal()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+    </div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Busca nos seus e-mails recentes por avisos de Pix e compras no débito do Mercado Pago.</div>
+    <div id="gmail-content"></div>
+  </div>
+</div>
 <div id="app">
   <!-- PAGES -->
   <div id="p-home" class="page active"></div>
@@ -459,6 +469,8 @@ const ICONS = {
   calendar:'<rect x="3.5" y="4.5" width="17" height="16" rx="2.4"/><path d="M3.5 9.5h17M8 3v3M16 3v3"/>',
   sparkle:'<path d="M12 3v4M12 17v4M3 12h4M17 12h4"/><path d="M6 6l2.5 2.5M15.5 15.5 18 18M18 6l-2.5 2.5M8.5 15.5 6 18"/>',
   cloud:'<path d="M17.5 19a4.5 4.5 0 0 0 0-9 6 6 0 0 0-11.4-1.7A4.5 4.5 0 0 0 6.5 19h11Z"/>',
+  mail:'<path d="M3 6.5A2 2 0 0 1 5 4.5h14a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-11Z"/><path d="M3.5 6l8.5 6.5L20.5 6"/>',
+  loader:'<circle cx="12" cy="12" r="9" stroke-opacity=".25"/><path d="M21 12a9 9 0 0 0-9-9"/>',
 };
 function icon(key,cls){
   if(!key||!ICONS[key])return key||'';
@@ -517,7 +529,7 @@ function showSyncToast(){
 // ═══════════════════════════════════════════════════════════════════
 let S = {
   theme:'dark', selectedMonth:'', payDay:5,
-  data:{}, fixedBillTemplates:[], customCategories:[],
+  data:{}, fixedBillTemplates:[], customCategories:[], importedEmailIds:[],
 };
 let currentPage='home', currentTab='vr', currentChart='cats';
 let billsOpen=false, expFilter=null, pmFilter=null, editingExp=null;
@@ -982,7 +994,7 @@ function rExp(){
 
   document.getElementById('p-expenses').innerHTML=`
     <div style="display:flex;flex-direction:column;height:calc(100vh - 76px);overflow:hidden">
-      <div class="ph"><div class="pt">Gastos</div><div style="display:flex;gap:8px"><button class="hbtn" onclick="openImportModal()">${icon('download')}</button><button class="hbtn" onclick="openExpModal(null)">${icon('plus')}</button></div></div>
+      <div class="ph"><div class="pt">Gastos</div><div style="display:flex;gap:8px"><button class="hbtn" onclick="openGmailModal()" title="Importar do Gmail">${icon('mail')}</button><button class="hbtn" onclick="openImportModal()">${icon('download')}</button><button class="hbtn" onclick="openExpModal(null)">${icon('plus')}</button></div></div>
       ${mselHTML()}
       <div style="display:flex;gap:8px;padding:0 16px 12px">
         <button class="fchip${!pmFilter?' on':''}" style="${!pmFilter?'background:var(--primary);border-color:var(--primary);color:#04101f':''}; font-size:12px;padding:8px 14px" onclick="setPMFilter(null)">Todos</button>
@@ -1071,6 +1083,164 @@ function doImportJSON(){
   const total=novos.reduce((a,e)=>a+Number(e.amount),0);
   alert(`${novos.length} transações importadas. Total: R$ ${total.toFixed(2)}`);
   rExp();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// GMAIL IMPORT (Mercado Pago — Pix e débito)
+// ═══════════════════════════════════════════════════════════════════
+let gmailPending=[];
+function openGmailModal(){
+  document.getElementById('gmail-modal').style.display='flex';
+  document.getElementById('gmail-content').innerHTML=`
+    <div style="text-align:center;padding:20px 0">
+      <button class="abtn" style="background:var(--grad);color:#04101f" onclick="runGmailSearch()">${icon('mail')} Buscar pagamentos recentes</button>
+      <div style="font-size:11px;color:var(--muted);margin-top:10px">Vai pedir permissão de leitura do Gmail (só e-mails, nada mais é lido).</div>
+    </div>`;
+}
+function closeGmailModal(){document.getElementById('gmail-modal').style.display='none'}
+function gmailStatus(msg){
+  const el=document.getElementById('gmail-content');
+  if(el)el.innerHTML=`<div style="text-align:center;padding:30px 0;color:var(--muted);font-size:13px">${msg}</div>`;
+}
+function b64urlDecode(s){
+  s=s.replace(/-/g,'+').replace(/_/g,'/');
+  const bin=atob(s);
+  try{
+    const bytes=Uint8Array.from(bin,c=>c.charCodeAt(0));
+    return new TextDecoder('utf-8').decode(bytes);
+  }catch(e){return bin;}
+}
+function extractEmailBody(payload){
+  if(!payload)return{};
+  if(payload.mimeType==='text/html'&&payload.body?.data)return{html:b64urlDecode(payload.body.data)};
+  if(payload.mimeType==='text/plain'&&payload.body?.data)return{text:b64urlDecode(payload.body.data)};
+  if(payload.parts){
+    let html=null,text=null;
+    for(const p of payload.parts){
+      const r=extractEmailBody(p);
+      if(r.html)html=r.html;
+      if(r.text&&!text)text=r.text;
+    }
+    return{html,text};
+  }
+  return{};
+}
+function htmlToText(html){
+  const clean=html.replace(/<script[\s\S]*?<\/script>/gi,'').replace(/<style[\s\S]*?<\/style>/gi,'');
+  const div=document.createElement('div');
+  div.innerHTML=clean;
+  return(div.textContent||div.innerText||'').replace(/ /g,' ').replace(/[ \t]+/g,' ');
+}
+function parseMPEmail(subject,bodyText){
+  const isPix=/pix/i.test(subject)&&/enviad/i.test(subject);
+  const isDebit=/compra aprovada|voc[eê] fez uma compra|compra no d[eé]bito/i.test(subject);
+  const isIncoming=/recebeu|recebido/i.test(subject);
+  if(isIncoming||(!isPix&&!isDebit))return null;
+  const amtMatch=bodyText.match(/R\$\s*([\d.,]+)/);
+  if(!amtMatch)return null;
+  const amount=parseFloat(amtMatch[1].replace(/\./g,'').replace(',','.'));
+  if(!amount||amount<=0)return null;
+  // Procura um nome de estabelecimento: linha em maiúsculas próxima ao valor, ignorando rótulos conhecidos
+  const lines=bodyText.split('\n').map(l=>l.trim()).filter(Boolean);
+  const skip=/cpf|cnpj|ag[eê]ncia|conta|tipo|detalhe|transa[cç][aã]o|se n[aã]o foi voc[eê]|mercado pago|proteger|comprovante|feira,|s[aá]bado,|domingo,|\d{1,2}:\d{2}|de (janeiro|fevereiro|mar[cç]o|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro) de \d{4}/i;
+  let desc='';
+  for(const l of lines){
+    if(l.includes('R$'))continue;
+    if(skip.test(l))continue;
+    if(l.length<3||l.length>60)continue;
+    const letters=l.replace(/[^a-zA-ZÀ-ÿ]/g,'');
+    if(letters.length<3)continue;
+    desc=l;
+    break;
+  }
+  return{
+    amount,
+    description:desc||(isPix?'Pix':'Compra Mercado Pago'),
+    paymentMethod:isPix?'pix':'debit',
+  };
+}
+async function getGmailAccessToken(){
+  const provider=new firebase.auth.GoogleAuthProvider();
+  provider.addScope('https://www.googleapis.com/auth/gmail.readonly');
+  const result=await _auth.signInWithPopup(provider);
+  const cred=firebase.auth.GoogleAuthProvider.credentialFromResult(result);
+  if(!cred?.accessToken)throw new Error('Não foi possível obter permissão do Gmail.');
+  return cred.accessToken;
+}
+async function runGmailSearch(){
+  gmailStatus(`${icon('loader')} Pedindo permissão e buscando e-mails...`);
+  try{
+    const token=await getGmailAccessToken();
+    const q='from:mercadopago.com.br (subject:"Pix foi enviado" OR subject:"Pix enviado" OR subject:"compra aprovada" OR subject:"Você fez uma compra") newer_than:30d';
+    const listRes=await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(q)}&maxResults=25`,{headers:{Authorization:`Bearer ${token}`}});
+    if(!listRes.ok)throw new Error('Gmail API: '+listRes.status);
+    const listData=await listRes.json();
+    const msgs=(listData.messages||[]).filter(m=>!(S.importedEmailIds||[]).includes(m.id));
+    if(!msgs.length){gmailStatus('Nenhum pagamento novo encontrado nos últimos 30 dias.');return;}
+    gmailStatus(`${icon('loader')} Lendo ${msgs.length} e-mail(s)...`);
+    const results=[];
+    for(const m of msgs){
+      const dRes=await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${m.id}?format=full`,{headers:{Authorization:`Bearer ${token}`}});
+      if(!dRes.ok)continue;
+      const msg=await dRes.json();
+      const subjHeader=(msg.payload?.headers||[]).find(h=>h.name==='Subject');
+      const subject=subjHeader?.value||'';
+      const body=extractEmailBody(msg.payload);
+      const text=body.html?htmlToText(body.html):(body.text||'');
+      const parsed=parseMPEmail(subject,text);
+      if(!parsed)continue;
+      const ts=Number(msg.internalDate||Date.now());
+      results.push({
+        emailId:m.id,
+        date:new Date(ts).toISOString().slice(0,10),
+        amount:parsed.amount,
+        description:parsed.description,
+        paymentMethod:parsed.paymentMethod,
+        category:'other',
+        selected:true,
+      });
+    }
+    if(!results.length){gmailStatus('Nenhum e-mail reconhecido como pagamento. O formato pode ter mudado.');return;}
+    gmailPending=results;
+    renderGmailReview();
+  }catch(e){
+    gmailStatus(`Não deu pra buscar: ${e.message}<br><span style="font-size:11px">Confira se a Gmail API está habilitada e seu e-mail está liberado no consentimento OAuth do projeto.</span>`);
+  }
+}
+function renderGmailReview(){
+  const cats=allCats();
+  document.getElementById('gmail-content').innerHTML=`
+    <div style="font-size:12px;color:var(--muted);margin-bottom:10px">${gmailPending.length} encontrado(s). Confira e ajuste a categoria antes de adicionar.</div>
+    <div style="display:flex;flex-direction:column;gap:8px;max-height:50vh;overflow-y:auto">
+      ${gmailPending.map((it,i)=>`
+        <div class="icard" style="align-items:flex-start;flex-direction:column;gap:8px">
+          <div style="display:flex;align-items:center;gap:10px;width:100%">
+            <div class="bchk${it.selected?' paid':''}" style="cursor:pointer;flex-shrink:0" onclick="toggleGmailItem(${i})">${it.selected?icon('checkCircle'):''}</div>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:13px;font-weight:700;color:var(--text)">${it.description}</div>
+              <div style="font-size:11px;color:var(--muted)">${fmtDate(it.date)} · ${it.paymentMethod==='pix'?'Pix':'Débito'}</div>
+            </div>
+            <div style="font-size:14px;font-weight:800;color:var(--text)">${fmt(it.amount)}</div>
+          </div>
+          <div class="catgrid" style="padding-left:30px">${cats.map(c=>`<button class="catbtn${it.category===c.id?' on':''}" style="${it.category===c.id?`background:${c.c};border-color:${c.c}`:''};padding:5px 10px;font-size:11px" onclick="gmailPending[${i}].category='${c.id}';renderGmailReview()">${icon(c.e)} ${c.name}</button>`).join('')}</div>
+        </div>`).join('')}
+    </div>
+    <button class="abtn" style="background:var(--grad);color:#04101f;margin-top:14px" onclick="confirmGmailImport()">${icon('checkCircle')} Adicionar ${gmailPending.filter(i=>i.selected).length} gasto(s)</button>`;
+}
+function toggleGmailItem(i){gmailPending[i].selected=!gmailPending[i].selected;renderGmailReview()}
+function confirmGmailImport(){
+  const chosen=gmailPending.filter(i=>i.selected);
+  if(!chosen.length){alert('Selecione ao menos um item.');return;}
+  chosen.forEach(it=>{
+    const d=getMD(it.date.slice(0,7));
+    d.expenses.unshift({id:uid(),date:it.date,description:it.description,amount:it.amount,category:it.category,paymentMethod:it.paymentMethod,createdAt:Date.now()});
+    S.importedEmailIds=S.importedEmailIds||[];
+    S.importedEmailIds.push(it.emailId);
+  });
+  save();
+  closeGmailModal();
+  gmailPending=[];
+  rPage(currentPage);
 }
 
 // ═══════════════════════════════════════════════════════════════════
