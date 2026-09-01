@@ -634,12 +634,21 @@ function calcVRBal(m){
   const spent=(d.expenses||[]).filter(e=>e.paymentMethod==='vr').reduce((a,e)=>a+e.amount,0);
   return Math.max(0,calcVRCarryOver(m)+rec-spent);
 }
+function calcTOPCarryOver(m){
+  const d=getMD(m);
+  if(typeof d.top?.carryOver==='number')return d.top.carryOver;
+  const [y,mo]=m.split('-').map(Number);
+  const pm=new Date(y,mo-2,1);
+  const prev=pm.getFullYear()+'-'+String(pm.getMonth()+1).padStart(2,'0');
+  if(!S.data[prev])return 0;
+  return calcTOPBal(prev);
+}
 function calcTOPBal(m){
   const d=getMD(m);
   const start=d.top?.startBalance||0;
   const rec=(d.top?.recharges||[]).reduce((a,r)=>a+r.amount,0);
   const spent=d.expenses.filter(e=>e.paymentMethod==='top').reduce((a,e)=>a+e.amount,0);
-  return Math.max(0,start+rec-spent);
+  return Math.max(0,calcTOPCarryOver(m)+start+rec-spent);
 }
 function calcExp(m){
   return getMD(m).expenses.filter(e=>e.paymentMethod!=='vr'&&e.paymentMethod!=='top').reduce((a,e)=>a+e.amount,0);
@@ -1540,7 +1549,8 @@ function rTOP(){
 
   const rechHTML=recharges.length?`<div class="stitle">Recargas</div>`+recharges.map(r=>`<div class="hitem"><span class="hico">${icon('plusCircle')}</span><span class="hdesc">${r.notes||'Recarga TOP'}</span><span class="hdate">${fmtDate(r.date)}</span><span class="hamt" style="color:var(--income)">+${fmt(r.amount)}</span><button class="edel" onclick="delTOPRecharge('${r.id}')">${icon('trash')}</button></div>`).join(''):'';
   const topExpHTML=topExps.length?topExps.map(e=>`<div class="hitem"><span class="hico">${icon('bus')}</span><span class="hdesc">${e.description||'Transporte'}</span><span class="hdate">${fmtDate(e.date)}</span><span class="hamt" style="color:var(--expense)">-${fmt(e.amount)}</span><button class="edel" onclick="openExpModal(${JSON.stringify(e).replace(/"/g,'&quot;')})">${icon('edit')}</button><button class="edel" onclick="delExp('${e.id}')">${icon('trash')}</button></div>`).join(''):`<div class="card"><div style="text-align:center;color:var(--muted);font-size:13px;padding:12px">Nenhum gasto TOP.</div></div>`;
-  const topAvail=(top?.startBalance||0)+topRec;
+  const topCarry=calcTOPCarryOver(m);
+  const topAvail=topCarry+(top?.startBalance||0)+topRec;
   const topPct=topAvail>0?Math.min(100,(topSpent/topAvail)*100):0;
 
   return`<div class="wcard top">
@@ -1553,6 +1563,7 @@ function rTOP(){
     <div class="wtrack"><div class="wfill" style="width:${topPct}%"></div></div>
   </div>
   ${balForm}
+  ${topCarry>0?`<div class="sr" style="padding:0 2px"><span class="sl">${icon('wallet')} Saldo mês anterior</span><span class="sv" style="color:var(--income)">+${fmt(topCarry)}</span></div>`:''}
   <div class="stat2">
     <div class="stat2box"><div class="stat2ico" style="background:var(--expense)18;color:var(--expense)">${icon('arrowDown')}</div><div class="stat2lbl">Total utilizado</div><div class="stat2val">${fmt(topSpent)}</div></div>
     <div class="stat2box"><div class="stat2ico" style="background:var(--income)18;color:var(--income)">${icon('plusCircle')}</div><div class="stat2lbl">Total de recargas</div><div class="stat2val">${fmt(topRec)}</div></div>
