@@ -2204,7 +2204,7 @@ function init(){
       if(user){
         if(overlay)overlay.style.display='none';
         await fbLoadFromCloud();
-        S.selectedMonth=mk();
+        if(!S.selectedMonth)S.selectedMonth=mk();
         document.body.className=S.theme||'dark';
         if(_imp==='vr-ago-2026')importVRAgo2026();
         history.replaceState({},'',location.pathname);
@@ -2221,7 +2221,7 @@ function init(){
     if(user){
       if(overlay)overlay.style.display='none';
       await fbLoadFromCloud();
-      S.selectedMonth=mk();
+      if(!S.selectedMonth)S.selectedMonth=mk();
       if(!S.theme)S.theme='dark';
       document.body.className=S.theme;
       // Limpeza única: remove meses antes de 2026-08 (mês de início do app)
