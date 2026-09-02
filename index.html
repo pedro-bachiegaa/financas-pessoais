@@ -597,6 +597,12 @@ function getMD(m){
     const d=defMonthData();
     d.fixedBills=S.fixedBillTemplates.filter(t=>t.active).map(t=>({...t,templateId:t.id,id:uid(),paid:false,paidDate:null}));
     S.data[m]=d;
+  } else {
+    const d=S.data[m];
+    const existingIds=new Set(d.fixedBills.map(b=>b.templateId));
+    S.fixedBillTemplates.filter(t=>t.active&&!existingIds.has(t.id)).forEach(t=>{
+      d.fixedBills.push({...t,templateId:t.id,id:uid(),paid:false,paidDate:null});
+    });
   }
   return S.data[m];
 }
@@ -2093,6 +2099,8 @@ function addFixedBill(){
 function delFixedBill(id){
   if(!confirm('Excluir esta conta fixa?'))return;
   S.fixedBillTemplates=S.fixedBillTemplates.filter(b=>b.id!==id);
+  const d=getMD(S.selectedMonth);
+  d.fixedBills=d.fixedBills.filter(b=>b.templateId!==id);
   save();rSal();
 }
 function addCustomCat(){
