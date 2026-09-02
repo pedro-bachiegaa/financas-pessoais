@@ -532,7 +532,7 @@ function showSyncToast(){
 // ═══════════════════════════════════════════════════════════════════
 let S = {
   theme:'dark', selectedMonth:'', payDay:5,
-  data:{}, fixedBillTemplates:[], customCategories:[], importedEmailIds:[],
+  data:{}, fixedBillTemplates:[], customCategories:[], importedEmailIds:[], hiddenCats:[],
 };
 let currentPage='home', currentTab='vr', currentChart='cats';
 let billsOpen=false, expFilter=null, pmFilter=null, editingExp=null;
@@ -606,7 +606,7 @@ function getMD(m){
   }
   return S.data[m];
 }
-function allCats(){return[...CATS,...S.customCategories]}
+function allCats(){return[...CATS.filter(c=>!S.hiddenCats.includes(c.id)),...S.customCategories]}
 function getCat(id){return allCats().find(c=>c.id===id)||{id:'other',name:'Outros',e:'dots',c:'#8293AD'}}
 function getPay(id){return PAYS.find(p=>p.id===id)||{id,name:id,e:'card',c:'#8293AD'}}
 
@@ -2029,7 +2029,9 @@ function rSet(){
 
       <!-- Default cats -->
       <div style="font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);margin-top:4px">Categorias padrão</div>
-      <div class="card"><div class="defcatsgrid">${CATS.map(c=>`<div class="dcat"><div class="catcircle" style="background:${c.c}22;color:${c.c};width:28px;height:28px">${icon(c.e)}</div><span>${c.name}</span></div>`).join('')}</div></div>
+      ${CATS.filter(c=>!S.hiddenCats.includes(c.id)).map(c=>`<div class="icard"><div class="catcircle" style="background:${c.c}22;color:${c.c}">${icon(c.e)}</div><div class="iname">${c.name}</div><button class="delbtn" onclick="delDefaultCat('${c.id}')">${icon('trash')}</button></div>`).join('')}
+      ${S.hiddenCats.length?`<div style="font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);margin-top:4px">Categorias removidas</div>
+      ${CATS.filter(c=>S.hiddenCats.includes(c.id)).map(c=>`<div class="icard" style="opacity:.6"><div class="catcircle" style="background:${c.c}22;color:${c.c}">${icon(c.e)}</div><div class="iname">${c.name}</div><button class="smbtn" onclick="restoreDefaultCat('${c.id}')">Restaurar</button></div>`).join('')}`:''}
 
       <!-- BACKUP -->
       <div style="font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);margin-top:4px">Backup e Restauração</div>
@@ -2115,10 +2117,19 @@ function delCat(id){
   S.customCategories=S.customCategories.filter(c=>c.id!==id);
   save();rSet();
 }
+function delDefaultCat(id){
+  if(!confirm('Remover esta categoria padrão? Gastos já lançados nela passam a aparecer como "Outros". Você pode restaurar depois.'))return;
+  S.hiddenCats.push(id);
+  save();rSet();
+}
+function restoreDefaultCat(id){
+  S.hiddenCats=S.hiddenCats.filter(c=>c!==id);
+  save();rSet();
+}
 function resetData(){
   if(!confirm('Apagar TODOS os dados? Esta ação não pode ser desfeita.'))return;
   localStorage.removeItem('fp_v2');
-  S={theme:S.theme,selectedMonth:mk(),payDay:5,data:{},fixedBillTemplates:[],customCategories:[]};
+  S={theme:S.theme,selectedMonth:mk(),payDay:5,data:{},fixedBillTemplates:[],customCategories:[],hiddenCats:[]};
   save();goto('home');
 }
 
@@ -2265,6 +2276,12 @@ function init(){
       if(!S._startMonth){
         S._startMonth='2026-08';
         Object.keys(S.data||{}).forEach(m=>{if(m<S._startMonth)delete S.data[m];});
+        save();
+      }
+      // Limpeza única: remove categorias padrão Casa e Educação
+      if(!S._catsCleanup){
+        S._catsCleanup=true;
+        ['house','edu'].forEach(id=>{if(!S.hiddenCats.includes(id))S.hiddenCats.push(id);});
         save();
       }
       goto('home');
