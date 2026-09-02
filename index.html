@@ -1822,6 +1822,17 @@ function rSal(){
   const totalStaticDisc=(sal?.inss||0)+(sal?.irrf||0)+(sal?.otherDiscounts||0)+(sal?.delays||0);
   const recVal=sal?.netReceived!=null?sal.netReceived:'';
   const hasRec=sal?.netReceived!=null;
+  const bills=S.fixedBillTemplates;
+  const totalBills=calcBills(m);
+  const netAfterBills=preview-totalBills;
+  const billFormHTML=billFormOpen?`<div class="card">
+    <div style="font-size:15px;font-weight:700;margin-bottom:12px">Nova conta fixa</div>
+    <div class="ff"><div class="flbl">Nome</div><input class="finp" id="bf-name" placeholder="Ex: Aluguel"/></div>
+    <div class="ff"><div class="flbl">Valor (R$)</div><input class="finp" id="bf-amt" type="number" inputmode="decimal" placeholder="Ex: 1200,00"/></div>
+    <div class="ff"><div class="flbl">Dia de vencimento</div><input class="finp" id="bf-day" type="number" inputmode="numeric" placeholder="Ex: 10" min="1" max="31"/></div>
+    <button class="abtn" style="background:var(--primary)" onclick="addFixedBill()">Adicionar conta</button>
+  </div>`:'';
+  const billsListHTML=bills.length?bills.map(b=>`<div class="icard"><span style="font-size:20px;display:flex;color:var(--muted)">${icon('file')}</span><div style="flex:1"><div class="iname">${b.name}</div><div class="isub">Vence dia ${b.dueDay}</div></div><span class="ival2">${fmt(b.amount)}</span><button class="delbtn" onclick="delFixedBill('${b.id}')">${icon('trash')}</button></div>`).join(''):`<div class="card"><div style="color:var(--muted);font-size:13px;text-align:center">Nenhuma conta fixa cadastrada.</div></div>`;
 
   const absSummaryHTML=absCnt>0&&daily>0?`
     <div class="abs-summary">
@@ -1855,7 +1866,17 @@ function rSal(){
         ${(sal?.bonuses||0)>0?`<div class="sr"><span class="sl">Bônus/adicionais</span><span class="sv" style="color:var(--income)">+${fmt(sal.bonuses)}</span></div>`:''}
         <div class="div"></div>
         <div class="sr bold"><span class="sl">Líquido previsto</span><span class="sv" style="color:var(--income)">${fmt(preview)}</span></div>
+        ${totalBills>0?`<div class="sr"><span class="sl">Contas fixas</span><span class="sv" style="color:var(--expense)">-${fmt(totalBills)}</span></div>
+        <div class="div"></div>
+        <div class="sr bold"><span class="sl">Líquido após contas fixas</span><span class="sv" style="color:var(--income)">${fmt(netAfterBills)}</span></div>`:''}
       </div>`:''}
+      <!-- CONTAS FIXAS -->
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px">
+        <div class="gtitle" style="margin:0">Contas Fixas</div>
+        <button class="sall" onclick="billFormOpen=!billFormOpen;rSal()">+ Adicionar</button>
+      </div>
+      ${billFormHTML}
+      ${billsListHTML}
       <!-- SALARIO BRUTO -->
       <div class="gtitle">Salário Bruto</div>
       <div class="ff"><div class="flbl">Salário bruto (R$)</div><input class="finp" id="sal-gross" type="number" inputmode="decimal" value="${sal?.gross||''}" placeholder="Ex: 5000,00" oninput="updateSalPrev()"/></div>
@@ -1911,8 +1932,21 @@ function updateSalPrev(){
   if(el)el.textContent=fmt(net);
 }
 function toggleSalRec(){
+  const show=document.getElementById('sal-hasr')?.checked;
   const el=document.getElementById('sal-rec-field');
-  if(el)el.style.display=document.getElementById('sal-hasr')?.checked?'':'none';
+  if(el)el.style.display=show?'':'none';
+  if(show){
+    const recInp=document.getElementById('sal-rec');
+    if(recInp&&!recInp.value){
+      const m=S.selectedMonth,d=getMD(m);
+      const absCnt=(d.salary?.absentDays||[]).length;
+      const g=id=>parseFloat(document.getElementById(id)?.value||0)||0;
+      const daily=g('sal-daily');
+      const absTotal=absCnt*daily*2;
+      const net=Math.max(0,g('sal-gross')-g('sal-inss')-g('sal-irrf')-g('sal-other')-absTotal-g('sal-del')+g('sal-bon'));
+      if(net)recInp.value=net.toFixed(2);
+    }
+  }
 }
 function saveSalary(){
   const g=id=>parseFloat(document.getElementById(id)?.value||0)||0;
@@ -1930,14 +1964,6 @@ function saveSalary(){
 // ═══════════════════════════════════════════════════════════════════
 function rSet(){
   const cats=S.customCategories;
-  const bills=S.fixedBillTemplates;
-  const billFormHTML=billFormOpen?`<div class="card">
-    <div style="font-size:15px;font-weight:700;margin-bottom:12px">Nova conta fixa</div>
-    <div class="ff"><div class="flbl">Nome</div><input class="finp" id="bf-name" placeholder="Ex: Aluguel"/></div>
-    <div class="ff"><div class="flbl">Valor (R$)</div><input class="finp" id="bf-amt" type="number" inputmode="decimal" placeholder="Ex: 1200,00"/></div>
-    <div class="ff"><div class="flbl">Dia de vencimento</div><input class="finp" id="bf-day" type="number" inputmode="numeric" placeholder="Ex: 10" min="1" max="31"/></div>
-    <button class="abtn" style="background:var(--primary)" onclick="addFixedBill()">Adicionar conta</button>
-  </div>`:'';
   const catFormHTML=catFormOpen?`<div class="card">
     <div style="font-size:15px;font-weight:700;margin-bottom:12px">Nova categoria</div>
     <div class="ff"><div class="flbl">Nome</div><input class="finp" id="cf-name" placeholder="Ex: Pet"/></div>
@@ -1986,14 +2012,6 @@ function rSet(){
       <div class="card"><div class="setlbl">Dia de recebimento do salário</div><div class="setdsc" style="margin-bottom:8px">Usado para calcular o limite diário disponível</div>
         <div class="frow2"><input class="pdayinp" id="pday-inp" type="number" inputmode="numeric" value="${S.payDay}" min="1" max="31"/><button class="smbtn" onclick="savePayDay()">Salvar</button></div>
       </div>
-
-      <!-- Fixed Bills -->
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px">
-        <div style="font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted)">Contas Fixas</div>
-        <button class="sall" onclick="billFormOpen=!billFormOpen;rSet()">+ Adicionar</button>
-      </div>
-      ${billFormHTML}
-      ${bills.length?bills.map(b=>`<div class="icard"><span style="font-size:20px;display:flex;color:var(--muted)">${icon('file')}</span><div style="flex:1"><div class="iname">${b.name}</div><div class="isub">Vence dia ${b.dueDay}</div></div><span class="ival2">${fmt(b.amount)}</span><button class="delbtn" onclick="delFixedBill('${b.id}')">${icon('trash')}</button></div>`).join(''):`<div class="card"><div style="color:var(--muted);font-size:13px;text-align:center">Nenhuma conta fixa cadastrada.</div></div>`}
 
       <!-- Custom Cats -->
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px">
@@ -2070,12 +2088,12 @@ function addFixedBill(){
   const day=parseInt(document.getElementById('bf-day')?.value||1);
   if(!name||!amt){alert('Preencha nome e valor.');return;}
   S.fixedBillTemplates.push({id:uid(),name,amount:amt,dueDay:day||1,category:'house',active:true});
-  billFormOpen=false;save();rSet();
+  billFormOpen=false;save();rSal();
 }
 function delFixedBill(id){
   if(!confirm('Excluir esta conta fixa?'))return;
   S.fixedBillTemplates=S.fixedBillTemplates.filter(b=>b.id!==id);
-  save();rSet();
+  save();rSal();
 }
 function addCustomCat(){
   const name=document.getElementById('cf-name')?.value?.trim();
