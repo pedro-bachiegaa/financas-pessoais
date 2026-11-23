@@ -1039,7 +1039,7 @@ function rHome(){
         <div class="chead"><div class="ctitle">${icon('wallet')} Resumo do Mês</div><button class="sallink" onclick="goto('salary')">Editar salário ›</button></div>
         <div class="netbox">
           <div class="nlabel">Disponível</div>
-          <div class="nval" style="${availStyle}">${fmt(avail)}</div>
+          <div class="nval" style="${availStyle}">${avail<0?'-':''}${fmt(avail)}</div>
         </div>
         <div class="sr"><span class="sl">Salário bruto</span><span class="sv" style="color:var(--income)">${fmt(salary?.gross||0)}</span></div>
         ${totalDiscounts>0?`<div class="sr"><span class="sl">Total de descontos</span><span class="sv" style="color:var(--expense)">-${fmt(totalDiscounts)}</span></div>`:''}
@@ -1052,7 +1052,7 @@ function rHome(){
         <div class="sr"><span class="sl">Total de gastos</span><span class="sv" style="color:var(--expense)">${fmt(totalExp)}</span></div>
         <div class="sr"><span class="sl">Total de contas</span><span class="sv" style="color:var(--expense)">${fmt(totalBills)}</span></div>
         ${cardTotal>0?`<div class="sr" style="cursor:pointer" onclick="cardBillSel='${cardKey}';goto('benefits',{tab:'contas'})"><span class="sl">${icon('card')} Fatura do cartão (vence ${fmtDate(cardDueDate(cardKey)).slice(0,5)}${cardInfo.paid?' · paga':''})</span><span class="sv" style="color:var(--expense)">${fmt(cardTotal)}</span></div>`:''}
-        <div class="sr bold"><span class="sl">Dinheiro disponível</span><span class="sv" style="color:${availColor}">${fmt(avail)}</span></div>
+        <div class="sr bold"><span class="sl">Dinheiro disponível</span><span class="sv" style="color:${availColor}">${avail<0?'-':''}${fmt(avail)}</span></div>
       </div>
 
       <!-- GANHOS EXTRAS -->
